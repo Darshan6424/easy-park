@@ -1,29 +1,27 @@
 import express from "express";
 import dotenv from "dotenv";
-import cors from "cors"
-import authRoutes from "./routes/auth.routes.js"
+import cors from "cors";
+import authRoutes from "./routes/auth.routes.js";
 import { dbConnection } from "./lib/mongoDB.js";
 
-dotenv.config()
-
+dotenv.config();
 
 const PORT = process.env.PORT;
-console.log(PORT)
+console.log(PORT);
 
 const app = express();
 
-app.use(cors(
-    {
+app.use(
+    cors({
         origin: "http://localhost:5173",
-        credentials : true
-    }
-))
+        credentials: true,
+    }),
+);
 
-app.use (express.json());
-app.use('/api', authRoutes)
+app.use(express.json());
+app.use("/api", authRoutes);
 
-
-app.listen (PORT , () => {
+app.listen(PORT, () => {
     console.log(`Server is listining to the port ${PORT}`);
     dbConnection();
-})
+});
