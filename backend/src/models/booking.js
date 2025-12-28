@@ -10,7 +10,7 @@ const bookingSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: true,
     },
-    vehicleType: {
+    type: {
         type: String,
         required: true,
         enum: ["Bike", "Car"],

@@ -42,17 +42,15 @@ export async function signin(req, res) {
     const { email, password } = req.body;
     try {
         if (!email || !password) {
-            return res.status(400).message({ message: "All field required" });
+            return res.status(400).json({ message: "All field required" });
         }
         const user = await User.findOne({ email });
         if (!user) {
-            return res.status(404).message({ message: "User Not found" });
+            return res.status(404).json({ message: "User Not found" });
         }
         const isPasswordCorrect = await user.isMatched(password);
         if (!isPasswordCorrect) {
-            return res
-                .status(500)
-                .message({ message: "Password is incorrect." });
+            return res.status(500).json({ message: "Password is incorrect." });
         }
         const token = jwt.sign(
             { userId: user._id },
