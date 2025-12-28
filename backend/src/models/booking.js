@@ -3,14 +3,14 @@ import mongoose from "mongoose";
 const bookingSchema = mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
+        ref: 'Users',
         required: true,
-        ref: "User",
     },
     parkingSlot: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
     },
-    vehicleType: {
+    type: {
         type: String,
         required: true,
         enum: ["Bike", "Car"],
@@ -30,3 +30,6 @@ const bookingSchema = mongoose.Schema({
         enum: ["active", "expired", "completed"],
     },
 });
+
+const Booking = mongoose.model("Booking", bookingSchema);
+export default Booking;

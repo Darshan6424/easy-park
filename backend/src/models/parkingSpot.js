@@ -35,6 +35,14 @@ parkingSpotSchema.index(
     { unique: true },
 );
 
+parkingSpotSchema.method.isParkingSpotAvailable = async function (enteredParkingSpot){
+    let isAvailable = false;
+    if (enteredParkingSpot._id === this._id) {
+        isAvailable = true;
+    }
+    return isAvailable;
+}
+
 const ParkingSpot = mongoose.model("ParkingSpot", parkingSpotSchema);
 
 export default ParkingSpot;
