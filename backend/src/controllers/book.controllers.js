@@ -4,10 +4,10 @@ import ParkingSpot from "../models/parkingSpot.js";
 import { book } from "../services/book.js";
 
 export default async function bookSpot(req, res) {
-  const { type, duration, time, parkingSpot } = req.body;
+  const { type, duration, time, parkingSlot } = req.body;
   const user = req.user;
   try {
-    if (!user || !type || !duration || !time || !parkingSpot) {
+    if (!user || !type || !duration || !time || !parkingSlot) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -16,7 +16,7 @@ export default async function bookSpot(req, res) {
       type,
       duration,
       time,
-      parkingSpot,
+      parkingSlot,
     };
 
     const result = await book(bookingDetails);
@@ -47,7 +47,7 @@ export async function deleteBooking(req, res) {
     if (!bookingDetails) {
       return res.status(404).json({ message: "Booking not found" });
     }
-    if (bookingDetails.userId.toString() !== userId) {
+    if (bookingDetails.user.toString() !== userId) {
       return res.status(403).json({
         message: "You are not allowed to delete this booking",
       });
@@ -111,7 +111,7 @@ export async function editBooking(req, res) {
 export async function getBooking(req, res) {
     const userId = req.user.id;
     try {
-        const bookedParkingSpots = await Booking.find({"user._id": userId});
+        const bookedParkingSpots = await Booking.find({"user": userId});
         return res.status(200).json({ data: bookedParkingSpots });
     } catch (error) {
         console.error("Get booking error:", error.message);

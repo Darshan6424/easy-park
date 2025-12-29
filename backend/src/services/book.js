@@ -3,16 +3,16 @@ import ParkingSpot from "../models/parkingSpot.js";
 import mongoose from "mongoose";
 
 export async function book(bookingDetails) {
-  const { user, type, duration, time, parkingSpot } = bookingDetails;
+  const { user, type, duration, time, parkingSlot } = bookingDetails;
 
   if (
     !mongoose.Types.ObjectId.isValid(user) ||
-    !mongoose.Types.ObjectId.isValid(parkingSpot)
+    !mongoose.Types.ObjectId.isValid(parkingSlot)
   ) {
     throw new Error("Invalid userId or parkingSpot");
   }
 
-  const spot = await ParkingSpot.findById(parkingSpot);
+  const spot = await ParkingSpot.findById(parkingSlot);
 
   if (!spot) {
     throw new Error("Parking spot not found");

@@ -24,7 +24,7 @@ app.use(cookieParser());
 
 app.use(express.json());
 app.use("/api", authRoutes);
-app.use("/api", bookingRoutes);
+app.use("/api/booking", bookingRoutes);
 app.use("/api/location", ParkingLocationRoutes);
 
 app.listen(PORT, () => {
