@@ -10,4 +10,3 @@ router.get("/hello", (req, res) => {
 });
 
 export default router;
-
