@@ -1,5 +1,5 @@
-import booking from "../models/booking";
-import ParkingSpot from "../models/parkingSpot";
+import booking from "../models/booking.js";
+import ParkingSpot from "../models/parkingSpot.js";
 import mongoose from "mongoose";
 
 export async function book(bookingDetails) {

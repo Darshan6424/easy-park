@@ -1,6 +1,6 @@
 import express from 'express';
-import { protectRoute } from '../middleware/auth.middleware';
-import bookSpot, { deleteBooking, editBooking, getBooking } from '../controllers/book.controllers';
+import { protectRoute } from '../middleware/auth.middleware.js';
+import bookSpot, { deleteBooking, editBooking, getBooking } from '../controllers/book.controllers.js';
 
 const router = express.Router();
 

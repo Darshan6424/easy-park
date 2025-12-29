@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import authRoutes from "./routes/auth.routes.js";
+import bookingRoutes from "./routes/book.routes.js";
 import { dbConnection } from "./lib/mongoDB.js";
 
 dotenv.config();
@@ -20,6 +21,7 @@ app.use(
 
 app.use(express.json());
 app.use("/api", authRoutes);
+app.use("/api", bookingRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is listining to the port ${PORT}`);

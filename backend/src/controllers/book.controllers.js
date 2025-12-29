@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
 import Booking from "../models/booking.js";
-import ParkingSpot from "../models/parkingSpot";
-import { book } from "../services/book";
+import ParkingSpot from "../models/parkingSpot.js";
+import { book } from "../services/book.js";
 
-export async function bookSpot(req, res) {
+export default async function bookSpot(req, res) {
   const { type, duration, time, parkingSpot } = req.body;
   const user = req.user;
   try {
