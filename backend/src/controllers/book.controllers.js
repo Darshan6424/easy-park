@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Booking from "../models/booking.js";
 import ParkingSpot from "../models/parkingSpot.js";
-import { book } from "../services/book.js";
+import { book } from "../services/book.service.js";
 
 export  async function bookSpot(req, res) {
   const { type, duration, time, parkingSlot } = req.body;
