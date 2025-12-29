@@ -3,7 +3,7 @@ import Booking from "../models/booking.js";
 import ParkingSpot from "../models/parkingSpot.js";
 import { book } from "../services/book.js";
 
-export default async function bookSpot(req, res) {
+export  async function bookSpot(req, res) {
   const { type, duration, time, parkingSlot } = req.body;
   const user = req.user;
   try {
@@ -34,7 +34,7 @@ export default async function bookSpot(req, res) {
   }
 }
 
-export async function deleteBooking(req, res) {
+export  async function deleteBooking(req, res) {
   const  bookingId  = req.query.id;
   const userId = req.user.id;
 
@@ -67,7 +67,7 @@ export async function deleteBooking(req, res) {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 }
-export async function editBooking(req, res) {
+export  async function editBooking(req, res) {
     const { type, duration, time, parkingSpot} = req.body;
     const user = req.user;
     const bookingId = req.query.id;
@@ -108,7 +108,7 @@ export async function editBooking(req, res) {
     }
 }
 
-export async function getBooking(req, res) {
+export   async function getBooking(req, res) {
     const userId = req.user.id;
     try {
         const bookedParkingSpots = await Booking.find({"user": userId});
