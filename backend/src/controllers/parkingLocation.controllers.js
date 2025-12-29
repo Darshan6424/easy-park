@@ -1,4 +1,4 @@
-import * as parkingLocationService from "../services/parkingLocation.service.js";
+import * as parkingLocationService from "../services/parkingLocation.services.js";
 
 async function addLocation(req, res) {
     try {

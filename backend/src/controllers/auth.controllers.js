@@ -31,7 +31,7 @@ export async function signup(req, res) {
             httpOnly: true,
             sameSite: "strict",
         });
-        res.status(200).json({ sucess: true, user: newUser });
+        res.status(200).json({ user: newUser });
     } catch (error) {
         console.log("Error during signup: ", error);
         res.status(500).json({ message: "Internal Server Error" });
@@ -64,7 +64,7 @@ export async function signin(req, res) {
             httpOnly: true,
             sameSite: "strict",
         });
-        res.status(200).json({ sucess: true, user: user });
+        res.status(200).json({ user: user });
     } catch (error) {
         console.log("Error during login : ", error.message);
         res.status(500).json({ message: "Internal server error" });

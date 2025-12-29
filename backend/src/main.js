@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import authRoutes from "./routes/auth.routes.js";
 import bookingRoutes from "./routes/book.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
 import ParkingLocationRoutes from "./routes/parkingLocation.routes.js";
 import { dbConnection } from "./lib/mongoDB.js";
 
@@ -26,6 +27,7 @@ app.use(express.json());
 app.use("/api", authRoutes);
 app.use("/api/booking", bookingRoutes);
 app.use("/api/location", ParkingLocationRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is listining to the port ${PORT}`);

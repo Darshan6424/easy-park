@@ -25,6 +25,7 @@ const parkingLocationSchema = new mongoose.Schema(
         parkingSpots: [
             {
                 type: mongoose.Schema.Types.ObjectId,
+                required: true,
                 ref: "ParkingSpot",
             },
         ],

@@ -2,7 +2,7 @@ import * as adminServices from "../services/admin.services.js";
 
 async function getUsers(req, res) {
     try {
-        const result = adminServices.getUsers();
+        const result = await adminServices.getUsers();
         res.status(200).json({
             message: "User fetched successfully",
             data: result,
@@ -17,7 +17,7 @@ async function getUsers(req, res) {
 
 async function deleteUser(req, res) {
     try {
-        const result = adminServices.deleteUser(req.params.id);
+        const result = await adminServices.deleteUser(req.params.id);
         res.status(200).json({
             message: "User deleted successfully",
             data: result,
@@ -29,3 +29,5 @@ async function deleteUser(req, res) {
         });
     }
 }
+
+export { getUsers, deleteUser };

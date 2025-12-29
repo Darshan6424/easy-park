@@ -3,12 +3,13 @@ import mongoose from "mongoose";
 const bookingSchema = mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Users',
+        ref: "Users",
         required: true,
     },
-    parkingSlot: {
+    parkingSpot: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
+        ref: "parkingSpot",
     },
     type: {
         type: String,
@@ -33,3 +34,4 @@ const bookingSchema = mongoose.Schema({
 
 const Booking = mongoose.model("Booking", bookingSchema);
 export default Booking;
+
