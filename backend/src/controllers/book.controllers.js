@@ -3,7 +3,7 @@ import Booking from "../models/booking.js";
 import ParkingSpot from "../models/parkingSpot.js";
 import { book } from "../services/book.service.js";
 
-export  async function bookSpot(req, res) {
+export async function bookSpot(req, res) {
   const { type, duration, time, parkingSlot } = req.body;
   const user = req.user;
   try {
@@ -34,8 +34,8 @@ export  async function bookSpot(req, res) {
   }
 }
 
-export  async function deleteBooking(req, res) {
-  const  bookingId  = req.query.id;
+export async function deleteBooking(req, res) {
+  const bookingId = req.query.id;
   const userId = req.user.id;
 
   try {
@@ -53,10 +53,9 @@ export  async function deleteBooking(req, res) {
       });
     }
 
-    await ParkingSpot.findByIdAndUpdate(
-      bookingDetails.parkingSlot,
-      { isOccupied: false }
-    );
+    await ParkingSpot.findByIdAndUpdate(bookingDetails.parkingSlot, {
+      isOccupied: false,
+    });
     await Booking.findByIdAndDelete(bookingId);
 
     return res.status(200).json({
@@ -67,54 +66,57 @@ export  async function deleteBooking(req, res) {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 }
-export  async function editBooking(req, res) {
-    const { type, duration, time, parkingSpot} = req.body;
-    const user = req.user;
-    const bookingId = req.query.id;
-    try {
-        if (
+export async function editBooking(req, res) {
+  const { type, duration, time, parkingSpot } = req.body;
+  const user = req.user;
+  const bookingId = req.query.id;
+  try {
+    if (
       !mongoose.Types.ObjectId.isValid(bookingId) ||
       !mongoose.Types.ObjectId.isValid(parkingSpot)
     ) {
       return res.status(400).json({ message: "Invalid id provided" });
     }
-        if (!bookingId || !type || !duration || !time || !parkingSpot) {
-           return  res.status(401).json({message: "All field required"});
-        }
-        const bookingDetails = await Booking.findById(bookingId);
-        const parkingSpotDetails = await ParkingSpot.findById(parkingSpot);
-        if(!bookingDetails || !parkingSpotDetails){
-            return res.status(404).json({message : "Booking or Parking Spot not found"});
-        }
-        if (bookingDetails.user._id.toString() !== user.id) {
+    if (!bookingId || !type || !duration || !time || !parkingSpot) {
+      return res.status(401).json({ message: "All field required" });
+    }
+    const bookingDetails = await Booking.findById(bookingId);
+    const parkingSpotDetails = await ParkingSpot.findById(parkingSpot);
+    if (!bookingDetails || !parkingSpotDetails) {
+      return res
+        .status(404)
+        .json({ message: "Booking or Parking Spot not found" });
+    }
+    if (bookingDetails.user._id.toString() !== user.id) {
       return res.status(403).json({
         message: "You are not allowed to delete this booking",
       });
     }
     const startTime = new Date(time);
     const endTime = new Date(startTime.getTime() + duration * 60 * 60 * 1000);
-    const updatedBooking = await Booking.findByIdAndUpdate(bookingId,{
-    user,
-    parkingSlot: parkingSpot,
-    type,
-    startTime,
-    endTime,
-  });
-  return res.status(200).json({message : "Booking updated", data : updatedBooking})
-        
-    } catch (error) {
-         console.error("Delete booking error:", error.message);
+    const updatedBooking = await Booking.findByIdAndUpdate(bookingId, {
+      user,
+      parkingSlot: parkingSpot,
+      type,
+      startTime,
+      endTime,
+    });
+    return res
+      .status(200)
+      .json({ message: "Booking updated", data: updatedBooking });
+  } catch (error) {
+    console.error("Delete booking error:", error.message);
     return res.status(500).json({ message: "Internal Server Error" });
-    }
+  }
 }
 
-export   async function getBooking(req, res) {
-    const userId = req.user.id;
-    try {
-        const bookedParkingSpots = await Booking.find({"user": userId});
-        return res.status(200).json({ data: bookedParkingSpots });
-    } catch (error) {
-        console.error("Get booking error:", error.message);
-        return res.status(500).json({ message: "Internal Server Error" });
-    }
+export async function getBooking(req, res) {
+  const userId = req.user.id;
+  try {
+    const bookedParkingSpots = await Booking.find({ user: userId });
+    return res.status(200).json({ data: bookedParkingSpots });
+  } catch (error) {
+    console.error("Get booking error:", error.message);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
 }
