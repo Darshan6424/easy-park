@@ -69,4 +69,27 @@ async function updateLocation(req, res) {
     }
 }
 
-export { getLocations, addLocation, deleteLocation, updateLocation };
+async function getLocationsById(req, res) {
+    try {
+        const result = await parkingLocationService.getLocationById(
+            req.params.id,
+        );
+        res.status(200).json({
+            message: "Location fetched successfully",
+            data: result,
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Error fetching location",
+            error: error.message,
+        });
+    }
+}
+
+export {
+    getLocations,
+    addLocation,
+    deleteLocation,
+    updateLocation,
+    getLocationsById,
+};

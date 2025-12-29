@@ -91,4 +91,18 @@ async function updateLocation(id, locationData) {
     return updatedLocation;
 }
 
-export { getAllLocations, createLocation, deleteLocation, updateLocation };
+async function getLocationById(id) {
+    const location = await ParkingLocation.findById(id);
+    if (!location) {
+        throw new Error("Error getting parking location");
+    }
+    return location;
+}
+
+export {
+    getAllLocations,
+    createLocation,
+    deleteLocation,
+    updateLocation,
+    getLocationById,
+};
