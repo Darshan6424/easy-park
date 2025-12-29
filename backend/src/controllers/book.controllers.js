@@ -120,3 +120,19 @@ export async function getBooking(req, res) {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 }
+export async function getOneBooking(req, res) {
+  const bookingId = req.query.id;
+  try {
+    if(!bookingId) {
+      return res.status(404).json({message: "Booking id not found"});
+    }
+    const bookingDetails = await Booking.findById(bookingId);
+    if(!bookingDetails) {
+      return res.status(404).json({message : "Booking not found"});
+    }
+    return res.status(200).json({data : bookingDetails});
+  } catch (error) {
+    console.log("Error ", error);
+    return res.status(500).json({message: "Internal Server Error"})
+  }
+}

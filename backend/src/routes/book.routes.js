@@ -4,9 +4,10 @@ import bookSpot, { deleteBooking, editBooking, getBooking } from '../controllers
 
 const router = express.Router();
 
-router.post('/book-spot',protectRoute, bookSpot);
-router.get('/delete-booking', protectRoute, deleteBooking);
-router.post('/edit-booking', protectRoute, editBooking);
-router.get('/get-bookings', protectRoute, getBooking);
+router.post('/new',protectRoute, bookSpot);
+router.get('/delete', protectRoute, deleteBooking);
+router.post('/edit', protectRoute, editBooking);
+router.get('/', protectRoute, getBooking);
+router.get("/:id", protectRoute, getOneBooking);
 
 export default router;
