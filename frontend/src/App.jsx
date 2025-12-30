@@ -9,10 +9,18 @@ import QrCodeScanner from "./components/ui/QRScanner.jsx";
 
 function App() {
   return (
-    <div className="flex items-center justify-center w-full h-screen">
-      <QRComponent value={'hello guys'} />
-      <QrCodeScanner />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Layout>
+              <Home />
+            </Layout>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
