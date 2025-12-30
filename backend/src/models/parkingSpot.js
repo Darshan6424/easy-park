@@ -12,7 +12,6 @@ const parkingSpotSchema = new mongoose.Schema(
             type: String,
             required: true,
             enum: ["car", "bike"],
-            lowercase: true,
         },
         isOccupied: {
             type: Boolean,
@@ -35,13 +34,15 @@ parkingSpotSchema.index(
     { unique: true },
 );
 
-parkingSpotSchema.method.isParkingSpotAvailable = async function (enteredParkingSpot){
+parkingSpotSchema.method.isParkingSpotAvailable = async function (
+    enteredParkingSpot,
+) {
     let isAvailable = false;
     if (enteredParkingSpot._id === this._id) {
         isAvailable = true;
     }
     return isAvailable;
-}
+};
 
 const ParkingSpot = mongoose.model("ParkingSpot", parkingSpotSchema);
 

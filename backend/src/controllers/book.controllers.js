@@ -4,7 +4,7 @@ import {
     deleteBookingService,
     editBookingService,
     getOneBookingService,
-} from "../services/book.service.js";
+} from "../services/book.services.js";
 
 export async function bookSpot(req, res) {
     const { type, duration, time, parkingSpot } = req.body;
@@ -82,4 +82,3 @@ export async function getOneBooking(req, res) {
         return res.status(500).json({ message: error.message });
     }
 }
-

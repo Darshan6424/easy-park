@@ -7,7 +7,6 @@ const router = express.Router();
 router.get("/", protectRoute, getUsers);
 router.delete("/:id", protectRoute, deleteUser);
 
-//
 // router.post("/:id", protectRoute, banUser);
 // router.post("/promote/:id/:role", protectRoute, promoteUser);
 

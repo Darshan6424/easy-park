@@ -29,5 +29,16 @@ async function deleteUser(req, res) {
         });
     }
 }
+//
+// async function promoteUser(req, res) {
+//     try {
+//         const result = await adminServices.promoteUser(req.params.id)
+//     } catch (error) {
+//         res.status(500).json({
+//             message: "Failed to change Role",
+//             error: error.message,
+//         });
+//     }
+// }
 
 export { getUsers, deleteUser };

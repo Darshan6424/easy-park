@@ -18,6 +18,10 @@ const parkingLocationSchema = new mongoose.Schema(
                 required: true,
             },
         },
+        cost: {
+            type: Number,
+            required: true,
+        },
         description: {
             type: String,
             trim: true,

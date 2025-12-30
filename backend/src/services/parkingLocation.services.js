@@ -2,7 +2,7 @@ import ParkingLocation from "../models/parkingLocation.js";
 import ParkingSpot from "../models/parkingSpot.js";
 
 async function createLocation(locationData) {
-    const { name, location, description, parkingSpots } = locationData;
+    const { name, location, description, cost, parkingSpots } = locationData;
 
     if (!name || !location || !parkingSpots || parkingSpots.length === 0) {
         throw new Error(
@@ -10,10 +10,15 @@ async function createLocation(locationData) {
         );
     }
 
+    if (!cost || cost <= 0) {
+        throw new Error("Valid cost (greater than 0) is required");
+    }
+
     const parkingLocation = await ParkingLocation.create({
         name,
         location,
         description,
+        cost,
         parkingSpots: [],
     });
 
@@ -26,7 +31,6 @@ async function createLocation(locationData) {
     );
 
     const createdSpots = await Promise.all(spotPromises);
-
     parkingLocation.parkingSpots = createdSpots.map((spot) => spot._id);
     await parkingLocation.save();
 
@@ -41,16 +45,15 @@ async function getAllLocations() {
     const locations = await ParkingLocation.find()
         .populate("parkingSpots")
         .sort({ createdAt: -1 });
-
     return locations;
 }
 
 async function deleteLocation(locationId) {
     const location = await ParkingLocation.findById(locationId);
-
     if (!location) {
         throw new Error("Parking location not found");
     }
+
     await ParkingSpot.deleteMany({ parkingLocation: locationId });
     await ParkingLocation.findByIdAndDelete(locationId);
 
@@ -58,9 +61,9 @@ async function deleteLocation(locationId) {
 }
 
 async function updateLocation(id, locationData) {
-    const { name, location, description, parkingSpots } = locationData;
-    const oldLocation = await ParkingLocation.findById(id);
+    const { name, location, description, cost, parkingSpots } = locationData;
 
+    const oldLocation = await ParkingLocation.findById(id);
     if (!oldLocation) {
         throw new Error("Parking location not found");
     }
@@ -68,6 +71,12 @@ async function updateLocation(id, locationData) {
     if (name) oldLocation.name = name;
     if (location) oldLocation.location = location;
     if (description !== undefined) oldLocation.description = description;
+    if (cost !== undefined) {
+        if (cost <= 0) {
+            throw new Error("Cost must be greater than 0");
+        }
+        oldLocation.cost = cost;
+    }
 
     if (parkingSpots && parkingSpots.length > 0) {
         await ParkingSpot.deleteMany({ parkingLocation: id });
@@ -88,11 +97,13 @@ async function updateLocation(id, locationData) {
 
     const updatedLocation =
         await ParkingLocation.findById(id).populate("parkingSpots");
+
     return updatedLocation;
 }
 
 async function getLocationById(id) {
-    const location = await ParkingLocation.findById(id);
+    const location =
+        await ParkingLocation.findById(id).populate("parkingSpots");
     if (!location) {
         throw new Error("Error getting parking location");
     }

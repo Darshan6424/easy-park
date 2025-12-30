@@ -1,0 +1,567 @@
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Car,
+  Bike,
+  Clock,
+  Calendar,
+  MapPin,
+  ChevronRight,
+  ChevronLeft,
+  Loader2,
+  IndianRupee,
+  CheckCircle,
+} from "lucide-react";
+
+export default function BookingPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Get pre-filled data from URL params
+  const { locationId } = searchParams.get("locationId");
+  const urlSpotId = searchParams.get("spotId");
+  const urlType = searchParams.get("type");
+
+  const [step, setStep] = useState(urlSpotId && urlType ? 3 : 1); // Skip to step 3 if pre-filled
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Location data
+  const [location, setLocation] = useState(null);
+  const [parkingSpots, setParkingSpots] = useState([]);
+
+  // Booking data
+  const [bookingData, setBookingData] = useState({
+    type: urlType || "",
+    parkingSpot: urlSpotId || "",
+    time: "",
+    duration: 1,
+  });
+
+  useEffect(() => {
+    fetchLocation();
+  }, [locationId]);
+
+  const fetchLocation = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/location/${locationId}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        },
+      );
+
+      const result = await response.json();
+      console.log("Location Response:", result);
+
+      if (response.ok) {
+        const locationData = result.data || result;
+        setLocation(locationData);
+        setParkingSpots(locationData.parkingSpots || []);
+      } else {
+        setError(result.message || "Failed to fetch location");
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredSpots = parkingSpots.filter(
+    (spot) => !bookingData.type || spot.type === bookingData.type,
+  );
+
+  const availableSpots = filteredSpots.filter((spot) => !spot.isOccupied);
+
+  const handleVehicleSelect = (type) => {
+    setBookingData({ ...bookingData, type, parkingSpot: "" });
+    setStep(2);
+  };
+
+  const handleSpotSelect = (spotId) => {
+    setBookingData({ ...bookingData, parkingSpot: spotId });
+    setStep(3);
+  };
+
+  const handleTimeConfirm = () => {
+    if (!bookingData.time) {
+      setError("Please select start time");
+      return;
+    }
+    setError("");
+    setStep(4);
+  };
+
+  const calculateTotal = () => {
+    if (!location?.cost || !bookingData.duration) return 0;
+    return location.cost * bookingData.duration;
+  };
+
+  const handleBooking = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/booking/new`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(bookingData),
+        },
+      );
+
+      const result = await response.json();
+      console.log("Booking Response:", result);
+
+      if (response.ok) {
+        alert("Booking successful!");
+        navigate("/");
+      } else {
+        setError(result.message || "Booking failed");
+      }
+    } catch (err) {
+      console.error("Booking error:", err);
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !location) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !location) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="bg-error/10 border-2 border-error rounded-xl p-8 max-w-md text-center">
+          <p className="text-text font-semibold mb-2">Error</p>
+          <p className="text-muted text-sm mb-4">{error}</p>
+          <button
+            onClick={() => navigate("/")}
+            className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Go Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background py-8 md:py-12">
+      <div className="max-w-5xl mx-auto px-4">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => navigate(-1)}
+            className="text-muted hover:text-primary mb-6 flex items-center gap-2 transition-colors font-medium"
+          >
+            <ChevronLeft size={20} />
+            Back
+          </button>
+          <div className="bg-surface border-2 border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                <MapPin className="text-white" size={28} strokeWidth={2.5} />
+              </div>
+              <div className="flex-1">
+                <h1 className="text-2xl md:text-3xl font-bold text-text mb-2">
+                  {location?.name}
+                </h1>
+                {location?.description && (
+                  <p className="text-muted text-sm">{location.description}</p>
+                )}
+              </div>
+              {location?.cost && (
+                <div className="text-right">
+                  <p className="text-xs text-muted uppercase font-semibold mb-1">
+                    Rate
+                  </p>
+                  <div className="flex items-center gap-1 text-primary font-bold text-xl">
+                    <IndianRupee size={20} />
+                    <span>{location.cost}/hr</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="flex items-center justify-center gap-2 mb-8 overflow-x-auto pb-2">
+          {[1, 2, 3, 4].map((s) => (
+            <div key={s} className="flex items-center">
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                  s <= step
+                    ? "bg-gradient-to-br from-primary to-accent text-white shadow-md"
+                    : "bg-surface border-2 border-border text-muted"
+                }`}
+              >
+                {s < step ? <CheckCircle size={20} /> : s}
+              </div>
+              {s < 4 && (
+                <div
+                  className={`w-12 md:w-16 h-1 mx-1 transition-all ${
+                    s < step
+                      ? "bg-gradient-to-r from-primary to-accent"
+                      : "bg-border"
+                  }`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Step 1: Vehicle Type */}
+        {step === 1 && (
+          <div className="bg-surface border-2 border-border rounded-xl p-6 md:p-8 shadow-sm">
+            <h2 className="text-2xl font-bold text-text mb-6 text-center">
+              Select Vehicle Type
+            </h2>
+            <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+              <button
+                onClick={() => handleVehicleSelect("car")}
+                className="bg-background border-2 border-border hover:border-primary rounded-xl p-8 transition-all group hover:shadow-lg"
+              >
+                <div className="w-20 h-20 bg-primary/20 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary transition-colors">
+                  <Car
+                    className="text-primary group-hover:text-white transition-colors"
+                    size={48}
+                    strokeWidth={2.5}
+                  />
+                </div>
+                <p className="text-xl font-bold text-text mb-2">Car</p>
+                <p className="text-sm text-muted">
+                  {
+                    parkingSpots.filter(
+                      (s) => s.type === "car" && !s.isOccupied,
+                    ).length
+                  }{" "}
+                  spots available
+                </p>
+              </button>
+
+              <button
+                onClick={() => handleVehicleSelect("bike")}
+                className="bg-background border-2 border-border hover:border-secondary rounded-xl p-8 transition-all group hover:shadow-lg"
+              >
+                <div className="w-20 h-20 bg-secondary/20 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-secondary transition-colors">
+                  <Bike
+                    className="text-secondary group-hover:text-white transition-colors"
+                    size={48}
+                    strokeWidth={2.5}
+                  />
+                </div>
+                <p className="text-xl font-bold text-text mb-2">Bike</p>
+                <p className="text-sm text-muted">
+                  {
+                    parkingSpots.filter(
+                      (s) => s.type === "bike" && !s.isOccupied,
+                    ).length
+                  }{" "}
+                  spots available
+                </p>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Spot Selection */}
+        {step === 2 && (
+          <div className="bg-surface border-2 border-border rounded-xl p-6 md:p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-text">
+                Select Parking Spot
+              </h2>
+              <div className="text-sm font-medium text-muted">
+                {availableSpots.length} available
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 mb-6">
+              {filteredSpots.map((spot) => (
+                <button
+                  key={spot._id}
+                  onClick={() => !spot.isOccupied && handleSpotSelect(spot._id)}
+                  disabled={spot.isOccupied}
+                  className={`aspect-square rounded-xl border-2 flex flex-col items-center justify-center gap-2 p-3 transition-all ${
+                    spot.isOccupied
+                      ? "bg-error/10 border-error cursor-not-allowed opacity-40"
+                      : bookingData.parkingSpot === spot._id
+                        ? "bg-gradient-to-br from-success to-success/70 border-success text-white shadow-lg"
+                        : "bg-background border-border hover:border-primary hover:bg-primary/5 hover:shadow-md"
+                  }`}
+                >
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      bookingData.parkingSpot === spot._id
+                        ? "bg-white"
+                        : spot.isOccupied
+                          ? "bg-error/20"
+                          : "bg-primary/20"
+                    }`}
+                  >
+                    {spot.type === "car" ? (
+                      <Car
+                        size={20}
+                        strokeWidth={2.5}
+                        className={
+                          bookingData.parkingSpot === spot._id
+                            ? "text-success"
+                            : spot.isOccupied
+                              ? "text-error"
+                              : "text-primary"
+                        }
+                      />
+                    ) : (
+                      <Bike
+                        size={20}
+                        strokeWidth={2.5}
+                        className={
+                          bookingData.parkingSpot === spot._id
+                            ? "text-success"
+                            : spot.isOccupied
+                              ? "text-error"
+                              : "text-secondary"
+                        }
+                      />
+                    )}
+                  </div>
+                  <span
+                    className={`text-sm font-bold ${bookingData.parkingSpot === spot._id ? "text-white" : "text-text"}`}
+                  >
+                    {spot.spotNumber}
+                  </span>
+                  {spot.isOccupied && (
+                    <span className="text-[10px] text-error font-bold">
+                      Full
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setStep(1)}
+              className="text-muted hover:text-primary flex items-center gap-2 transition-colors font-medium"
+            >
+              <ChevronLeft size={20} />
+              Change Vehicle Type
+            </button>
+          </div>
+        )}
+
+        {/* Step 3: Time & Duration */}
+        {step === 3 && (
+          <div className="bg-surface border-2 border-border rounded-xl p-6 md:p-8 shadow-sm">
+            <h2 className="text-2xl font-bold text-text mb-6">
+              Select Date, Time & Duration
+            </h2>
+
+            <div className="max-w-md mx-auto space-y-6">
+              {/* Start Time */}
+              <div>
+                <label className="block text-sm font-semibold text-text mb-2 flex items-center gap-2">
+                  <Calendar size={16} className="text-primary" />
+                  Start Date & Time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={bookingData.time}
+                  onChange={(e) =>
+                    setBookingData({ ...bookingData, time: e.target.value })
+                  }
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="w-full px-4 py-3 bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary text-text transition-colors"
+                />
+              </div>
+
+              {/* Duration */}
+              <div>
+                <label className="block text-sm font-semibold text-text mb-2 flex items-center gap-2">
+                  <Clock size={16} className="text-primary" />
+                  Duration (hours)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={bookingData.duration}
+                  onChange={(e) =>
+                    setBookingData({
+                      ...bookingData,
+                      duration: parseInt(e.target.value) || 1,
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary text-text transition-colors"
+                />
+              </div>
+
+              {/* Cost Preview */}
+              {location?.cost && bookingData.duration > 0 && (
+                <div className="bg-gradient-to-r from-primary/10 to-accent/10 border-2 border-primary/30 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted font-semibold uppercase mb-1">
+                        Estimated Cost
+                      </p>
+                      <p className="text-sm text-muted">
+                        ₹{location.cost}/hr × {bookingData.duration} hr
+                        {bookingData.duration > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 text-primary font-bold text-2xl">
+                      <IndianRupee size={24} />
+                      <span>{calculateTotal()}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-error/10 border-2 border-error rounded-lg p-4">
+                  <p className="text-text text-sm font-semibold">{error}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(urlSpotId ? 1 : 2)}
+                  className="flex-1 border-2 border-border text-text px-6 py-3 rounded-lg font-medium hover:border-primary hover:bg-primary/5 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleTimeConfirm}
+                  className="flex-1 bg-gradient-to-r from-primary to-accent text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition-all"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Confirm */}
+        {step === 4 && (
+          <div className="bg-surface border-2 border-border rounded-xl p-6 md:p-8 shadow-sm">
+            <h2 className="text-2xl font-bold text-text mb-6 text-center">
+              Review & Confirm Booking
+            </h2>
+
+            <div className="max-w-md mx-auto space-y-6">
+              <div className="bg-background border-2 border-border rounded-xl p-5 space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted text-sm">Location</span>
+                  <span className="text-text font-bold">{location?.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted text-sm">Vehicle Type</span>
+                  <span className="text-text font-bold capitalize flex items-center gap-2">
+                    {bookingData.type === "car" ? (
+                      <Car size={16} />
+                    ) : (
+                      <Bike size={16} />
+                    )}
+                    {bookingData.type}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted text-sm">Parking Spot</span>
+                  <span className="text-text font-bold">
+                    {
+                      parkingSpots.find(
+                        (s) => s._id === bookingData.parkingSpot,
+                      )?.spotNumber
+                    }
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted text-sm">Start Time</span>
+                  <span className="text-text font-bold text-sm">
+                    {new Date(bookingData.time).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted text-sm">Duration</span>
+                  <span className="text-text font-bold">
+                    {bookingData.duration} hour
+                    {bookingData.duration > 1 ? "s" : ""}
+                  </span>
+                </div>
+              </div>
+
+              {/* Total Cost */}
+              <div className="bg-gradient-to-r from-primary to-accent rounded-xl p-5 text-white shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/80 text-sm font-medium mb-1">
+                      Total Amount
+                    </p>
+                    <p className="text-xs text-white/60">
+                      ₹{location?.cost}/hr × {bookingData.duration} hr
+                      {bookingData.duration > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 font-bold text-3xl">
+                    <IndianRupee size={28} />
+                    <span>{calculateTotal()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-error/10 border-2 border-error rounded-lg p-4">
+                  <p className="text-text text-sm font-semibold">{error}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(3)}
+                  disabled={loading}
+                  className="flex-1 border-2 border-border text-text px-6 py-3 rounded-lg font-medium hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleBooking}
+                  disabled={loading}
+                  className="flex-1 bg-gradient-to-r from-primary to-accent text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin" size={20} />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={20} />
+                      Confirm Booking
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
