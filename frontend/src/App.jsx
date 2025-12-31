@@ -14,6 +14,8 @@ import MyBookings from "./components/ui/myBookings.jsx";
 import Locations from "./pages/location.jsx";
 import AddLocation from "./pages/addLocation.jsx";
 import LocationDetail from "./pages/locationDetails.jsx";
+import QRComponent from "./components/ui/QRComponent.jsx";
+import QrCodeScanner from "./components/ui/QRScanner.jsx";
 
 function App() {
   return (
