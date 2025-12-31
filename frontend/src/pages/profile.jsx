@@ -91,49 +91,6 @@ export default function Profile() {
     }
   };
 
-  const handlePromoteToOwner = async () => {
-    if (
-      !confirm(
-        "Are you sure you want to become a parking spot owner? This action cannot be undone.",
-      )
-    ) {
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/user`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ role: "OWNER" }),
-        },
-      );
-
-      const result = await response.json();
-      console.log("Promote Response:", result);
-
-      if (response.ok) {
-        setUser(result.data); // Use returned data from backend
-        setSuccess(result.message || "You are now a parking spot owner!");
-      } else {
-        setError(result.message || "Failed to promote account");
-      }
-    } catch (err) {
-      console.error("Promote error:", err);
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleDeleteAccount = async () => {
     if (
       !confirm(
@@ -374,11 +331,10 @@ export default function Profile() {
                   locations. Start earning by renting out your parking spaces.
                 </p>
                 <button
-                  onClick={handlePromoteToOwner}
-                  disabled={loading}
-                  className="bg-secondary text-white px-6 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => navigate("/register-owner")}
+                  className="bg-secondary text-white px-6 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity"
                 >
-                  {loading ? "Processing..." : "Upgrade to Owner"}
+                  Upgrade to Owner
                 </button>
               </div>
             </div>

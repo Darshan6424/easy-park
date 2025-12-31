@@ -43,14 +43,6 @@ export default function Footer() {
               </li>
               <li>
                 <a
-                  href="/pricing"
-                  className="text-background opacity-80 hover:text-primary transition-colors text-sm md:text-base"
-                >
-                  Pricing
-                </a>
-              </li>
-              <li>
-                <a
                   href="/faq"
                   className="text-background opacity-80 hover:text-primary transition-colors text-sm md:text-base"
                 >
@@ -95,7 +87,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="border-t border-background mt-6 md:mt-8 pt-6 md:pt-8 text-center text-background opacity-70">
           <p className="text-xs md:text-base">
-            &copy; {currentYear} {APP_CONFIG.name}. All rights reserved.
+            © 2024 Smart Parking Booking • Hackathon Project
           </p>
         </div>
       </div>

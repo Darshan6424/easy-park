@@ -16,6 +16,9 @@ import LocationDetail from "./pages/locationDetails.jsx";
 import Ticket from "./pages/ticket.jsx";
 import QRScannerPage from "./pages/QRScanner.jsx";
 import MyBookingsComponent from "./components/ui/myBookings.jsx";
+import About from "./pages/about.jsx";
+import FAQ from "./pages/faq.jsx";
+import RegisterOwner from "./pages/register-owner.jsx";
 
 function App() {
   return (
@@ -126,6 +129,32 @@ function App() {
           element={
             <Layout>
               <QRScannerPage />
+            </Layout>
+          }
+        />
+
+        <Route
+          path="/about"
+          element={
+            <Layout>
+              <About />
+            </Layout>
+          }
+        />
+        <Route
+          path="/faq"
+          element={
+            <Layout>
+              <FAQ />
+            </Layout>
+          }
+        />
+
+        <Route
+          path="/register-owner"
+          element={
+            <Layout>
+              <RegisterOwner />
             </Layout>
           }
         />

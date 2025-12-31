@@ -19,7 +19,7 @@ const app = express();
 
 app.use(
     cors({
-        origin: "https://below-technological-leather-automatically.trycloudflare.com",
+        origin: "http://localhost:5173",
         credentials: true,
     }),
 );

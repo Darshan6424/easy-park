@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Tooltip,
+  useMap,
+} from "react-leaflet";
 import {
   Navigation,
   MapPin,
@@ -335,6 +342,16 @@ export default function SearchMap() {
                   },
                 }}
               >
+                <Tooltip
+                  permanent
+                  direction="top"
+                  offset={[0, -40]}
+                  className="!bg-white/95 !border-2 !border-success/30 !rounded-lg !px-2 !py-1 !shadow-lg"
+                >
+                  <span className="text-xs font-semibold text-gray-800">
+                    {location.name}
+                  </span>
+                </Tooltip>
                 <Popup>
                   <div className="min-w-[220px] p-2">
                     <h3 className="font-bold text-text text-base mb-2">

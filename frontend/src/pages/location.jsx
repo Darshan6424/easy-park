@@ -305,6 +305,8 @@ export default function Locations() {
                   (s) => s.type === "bike" && !s.isOccupied,
                 ).length || 0;
 
+              const [lng, lat] = location.location.coordinates;
+
               return (
                 <div
                   key={location._id}
@@ -354,16 +356,27 @@ export default function Locations() {
                     </div>
                   </div>
 
-                  {/* Book Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/location/${location._id}`);
-                    }}
-                    className="w-full mt-4 bg-primary text-white py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-                  >
-                    View Details
-                  </button>
+                  {/* Buttons */}
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/map?lat=${lat}&lng=${lng}&type=car`);
+                      }}
+                      className="bg-surface border-2 border-border text-text px-4 py-2 rounded-lg text-sm font-medium hover:border-primary transition-colors"
+                    >
+                      Map
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/location/${location._id}`);
+                      }}
+                      className="flex-1 bg-primary text-white py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+                    >
+                      View Details
+                    </button>
+                  </div>
                 </div>
               );
             })}

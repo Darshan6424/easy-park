@@ -14,6 +14,7 @@ import {
   Plus,
   Minus,
   TimerReset,
+  CreditCard,
 } from "lucide-react";
 
 export default function BookingPage() {
@@ -163,7 +164,7 @@ export default function BookingPage() {
         localStorage.removeItem("bookings_timestamp");
 
         // Success! Navigate to my bookings
-        alert("Booking successful! 🎉");
+        alert("Payment Successful! Booking confirmed! 🎉");
         navigate("/my-bookings");
       } else {
         setError(result.message || "Booking failed");
@@ -246,7 +247,7 @@ export default function BookingPage() {
 
         {/* Progress Steps */}
         <div className="flex items-center justify-center gap-2 mb-8 overflow-x-auto pb-2">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3, 4, 5].map((s) => (
             <div key={s} className="flex items-center">
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
@@ -257,9 +258,9 @@ export default function BookingPage() {
               >
                 {s < step ? <CheckCircle size={20} /> : s}
               </div>
-              {s < 4 && (
+              {s < 5 && (
                 <div
-                  className={`w-12 md:w-16 h-1 mx-1 transition-all ${
+                  className={`w-8 md:w-12 h-1 mx-1 transition-all ${
                     s < step
                       ? "bg-gradient-to-r from-primary to-accent"
                       : "bg-border"
@@ -596,6 +597,98 @@ export default function BookingPage() {
                 </div>
               </div>
 
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(3)}
+                  className="flex-1 border-2 border-border text-text px-6 py-3 rounded-lg font-medium hover:border-primary hover:bg-primary/5 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setStep(5)}
+                  className="flex-1 bg-gradient-to-r from-primary to-accent text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  Proceed to Payment
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Payment */}
+        {step === 5 && (
+          <div className="bg-surface border-2 border-border rounded-xl p-6 md:p-8 shadow-sm">
+            <h2 className="text-2xl font-bold text-text mb-6 text-center">
+              Payment
+            </h2>
+
+            <div className="max-w-md mx-auto space-y-6">
+              {/* Payment Demo Notice */}
+              <div className="bg-warning/10 border-2 border-warning rounded-xl p-4 text-center">
+                <p className="text-warning font-semibold text-sm">
+                  🎭 Demo Payment Mode
+                </p>
+                <p className="text-muted text-xs mt-1">
+                  This is a demonstration. No actual payment will be processed.
+                </p>
+              </div>
+
+              {/* Amount Card */}
+              <div className="bg-gradient-to-br from-primary via-primary to-accent rounded-xl p-8 text-white shadow-xl">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CreditCard size={32} strokeWidth={2} />
+                  </div>
+                  <p className="text-white/80 text-sm font-medium mb-2">
+                    Amount to Pay
+                  </p>
+                  <div className="flex items-center justify-center gap-2 font-bold text-5xl mb-4">
+                    <IndianRupee size={40} />
+                    <span>{calculateTotal()}</span>
+                  </div>
+                  <p className="text-white/60 text-xs">
+                    for {bookingData.duration} hour
+                    {bookingData.duration > 1 ? "s" : ""} parking
+                  </p>
+                </div>
+              </div>
+
+              {/* Booking Summary */}
+              <div className="bg-background border-2 border-border rounded-xl p-5 space-y-3">
+                <p className="text-muted text-xs font-semibold uppercase">
+                  Payment Summary
+                </p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted">Location</span>
+                  <span className="text-text font-medium">
+                    {location?.name}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted">Spot</span>
+                  <span className="text-text font-medium">
+                    {
+                      parkingSpots.find(
+                        (s) => s._id === bookingData.parkingSpot,
+                      )?.spotNumber
+                    }
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted">Duration</span>
+                  <span className="text-text font-medium">
+                    {bookingData.duration}h
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm pt-3 border-t border-border">
+                  <span className="text-text font-semibold">Total</span>
+                  <span className="text-primary font-bold">
+                    रु {calculateTotal()}
+                  </span>
+                </div>
+              </div>
+
               {error && (
                 <div className="bg-error/10 border-2 border-error rounded-lg p-4">
                   <p className="text-text text-sm font-semibold">{error}</p>
@@ -604,7 +697,7 @@ export default function BookingPage() {
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => setStep(4)}
                   disabled={loading}
                   className="flex-1 border-2 border-border text-text px-6 py-3 rounded-lg font-medium hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
                 >
@@ -613,7 +706,7 @@ export default function BookingPage() {
                 <button
                   onClick={handleBooking}
                   disabled={loading}
-                  className="flex-1 bg-gradient-to-r from-primary to-accent text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 bg-gradient-to-r from-success to-success/80 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -623,7 +716,7 @@ export default function BookingPage() {
                   ) : (
                     <>
                       <CheckCircle size={20} />
-                      Confirm Booking
+                      Pay Now
                     </>
                   )}
                 </button>
