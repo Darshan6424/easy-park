@@ -10,12 +10,12 @@ import Home from "./pages/home.jsx";
 import SearchMap from "./pages/searchMap.jsx";
 import BookingPage from "./pages/booking.jsx";
 import Profile from "./pages/profile.jsx";
-import MyBookings from "./components/ui/myBookings.jsx";
 import Locations from "./pages/location.jsx";
 import AddLocation from "./pages/addLocation.jsx";
 import LocationDetail from "./pages/locationDetails.jsx";
-import QRComponent from "./components/ui/QRComponent.jsx";
-import QrCodeScanner from "./components/ui/QRScanner.jsx";
+import Ticket from "./pages/ticket.jsx";
+import QRScannerPage from "./pages/QRScanner.jsx";
+import MyBookingsComponent from "./components/ui/myBookings.jsx";
 
 function App() {
   return (
@@ -78,10 +78,18 @@ function App() {
         />
 
         <Route
+          path="/booking/:bookingId"
+          element={
+            <Layout>
+              <Ticket />
+            </Layout>
+          }
+        />
+        <Route
           path="/my-bookings"
           element={
             <Layout>
-              <MyBookings />
+              <MyBookingsComponent />
             </Layout>
           }
         />
@@ -107,8 +115,17 @@ function App() {
         <Route
           path="/add-location"
           element={
-            <Layout>
+            <layout>
               <AddLocation />
+            </layout>
+          }
+        />
+
+        <Route
+          path="/scan"
+          element={
+            <Layout>
+              <QRScannerPage />
             </Layout>
           }
         />

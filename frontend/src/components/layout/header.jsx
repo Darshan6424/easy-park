@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Menu, X, User, LogOut } from "lucide-react";
+import { Menu, X, User, LogOut, ScanLine } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import APP_CONFIG from "../../config/config.js";
 import { isLoggedIn, getUser, logout } from "../../utils/auth.js";
@@ -10,6 +10,7 @@ export default function Header() {
   const navigate = useNavigate();
   const user = getUser();
   const loggedIn = isLoggedIn();
+  const isOwnerOrAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
 
   const mobileMenuRef = useRef(null);
   const profileMenuRef = useRef(null);
@@ -80,6 +81,15 @@ export default function Header() {
               >
                 Locations
               </Link>
+              {isOwnerOrAdmin && (
+                <Link
+                  to="/scan"
+                  className="text-text hover:text-primary transition-colors flex items-center gap-1"
+                >
+                  <ScanLine size={18} />
+                  Scan
+                </Link>
+              )}
               <Link
                 to="/about"
                 className="text-text hover:text-primary transition-colors"
@@ -189,6 +199,16 @@ export default function Header() {
               >
                 Locations
               </Link>
+              {isOwnerOrAdmin && (
+                <Link
+                  to="/scan"
+                  className="text-text hover:text-primary transition-colors py-2 flex items-center gap-2"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <ScanLine size={18} />
+                  Scan Ticket
+                </Link>
+              )}
               <Link
                 to="/about"
                 className="text-text hover:text-primary transition-colors py-2"

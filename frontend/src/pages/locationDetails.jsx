@@ -169,7 +169,7 @@ export default function LocationDetail() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted">Hourly Rate</span>
                     <span className="text-lg font-bold text-primary">
-                      ₹{location.cost}
+                      रु {location.cost}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-text text-sm font-medium">

@@ -274,7 +274,7 @@ export default function AddLocation() {
               {formData.cost && parseFloat(formData.cost) > 0 && (
                 <div className="bg-success/10 border border-success rounded-lg p-4">
                   <p className="text-sm font-semibold text-text">
-                    Preview: ₹{formData.cost}/hour
+                    Preview: रु{formData.cost}/hour
                   </p>
                   <p className="text-xs text-muted mt-1">
                     Users will see this rate when booking

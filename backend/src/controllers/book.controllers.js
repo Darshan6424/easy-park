@@ -4,6 +4,7 @@ import {
     deleteBookingService,
     editBookingService,
     getOneBookingService,
+    getAllBookingsService,
 } from "../services/book.services.js";
 
 export async function bookSpot(req, res) {
@@ -66,7 +67,7 @@ export async function editBooking(req, res) {
 
 export async function getBooking(req, res) {
     try {
-        const bookedParkingSpots = await Booking.find({ user: req.user.id });
+        const bookedParkingSpots = await getAllBookingsService(req.user.id);
         return res.status(200).json({ data: bookedParkingSpots });
     } catch (error) {
         console.error("Get booking error:", error.message);

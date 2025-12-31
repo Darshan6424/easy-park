@@ -68,7 +68,8 @@ export default function SearchParking() {
       }
     } catch (err) {
       console.error("IP location error:", err);
-      setError("Unable to determine your location. Please search manually.");
+      setError("Unable to determine your location. Default location used");
+      navigate(`map?lat=27.6819&lng=85.3196&type=${vehicleType}`);
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Car,
   Bike,
@@ -11,6 +11,9 @@ import {
   Loader2,
   IndianRupee,
   CheckCircle,
+  Plus,
+  Minus,
+  TimerReset,
 } from "lucide-react";
 
 export default function BookingPage() {
@@ -18,11 +21,11 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
 
   // Get pre-filled data from URL params
-  const { locationId } = searchParams.get("locationId");
+  const locationId = searchParams.get("locationId");
   const urlSpotId = searchParams.get("spotId");
   const urlType = searchParams.get("type");
 
-  const [step, setStep] = useState(urlSpotId && urlType ? 3 : 1); // Skip to step 3 if pre-filled
+  const [step, setStep] = useState(urlSpotId && urlType ? 3 : 1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -39,6 +42,11 @@ export default function BookingPage() {
   });
 
   useEffect(() => {
+    if (!locationId) {
+      setError("No location specified");
+      setLoading(false);
+      return;
+    }
     fetchLocation();
   }, [locationId]);
 
@@ -102,27 +110,61 @@ export default function BookingPage() {
     return location.cost * bookingData.duration;
   };
 
+  // Set current time
+  const setCurrentTime = () => {
+    const now = new Date();
+    const offsetTime = new Date(
+      now.getTime() - now.getTimezoneOffset() * 60000,
+    );
+    const formatted = offsetTime.toISOString().slice(0, 16);
+    setBookingData({ ...bookingData, time: formatted });
+  };
+
+  // Adjust duration
+  const adjustDuration = (change) => {
+    const newDuration = Math.max(
+      1,
+      Math.min(24, bookingData.duration + change),
+    );
+    setBookingData({ ...bookingData, duration: newDuration });
+  };
+
   const handleBooking = async () => {
     setLoading(true);
     setError("");
 
     try {
+      // Format the booking data for API
+      const requestBody = {
+        type: bookingData.type,
+        parkingSpot: bookingData.parkingSpot,
+        time: new Date(bookingData.time).toISOString(),
+        duration: bookingData.duration,
+      };
+
+      console.log("Booking request:", requestBody);
+
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/api/booking/new`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify(bookingData),
+          body: JSON.stringify(requestBody),
         },
       );
 
       const result = await response.json();
       console.log("Booking Response:", result);
 
-      if (response.ok) {
-        alert("Booking successful!");
-        navigate("/");
+      if (response.ok || result.success) {
+        // Clear any cached bookings since we have a new one
+        localStorage.removeItem("bookings_cache");
+        localStorage.removeItem("bookings_timestamp");
+
+        // Success! Navigate to my bookings
+        alert("Booking successful! 🎉");
+        navigate("/my-bookings");
       } else {
         setError(result.message || "Booking failed");
       }
@@ -148,12 +190,12 @@ export default function BookingPage() {
   if (error && !location) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="bg-error/10 border-2 border-error rounded-xl p-8 max-w-md text-center">
-          <p className="text-text font-semibold mb-2">Error</p>
+        <div className="bg-error/10 border-2 border-error rounded-xl p-8 max-w-md text-center shadow-lg">
+          <p className="text-text font-bold text-lg mb-2">Error</p>
           <p className="text-muted text-sm mb-4">{error}</p>
           <button
             onClick={() => navigate("/")}
-            className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+            className="bg-gradient-to-r from-primary to-accent text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition-all"
           >
             Go Home
           </button>
@@ -163,7 +205,7 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-8 md:py-12">
+    <div className="min-h-screen bg-background py-6 md:py-12">
       <div className="max-w-5xl mx-auto px-4">
         {/* Header */}
         <div className="mb-8">
@@ -174,13 +216,13 @@ export default function BookingPage() {
             <ChevronLeft size={20} />
             Back
           </button>
-          <div className="bg-surface border-2 border-border rounded-xl p-6 shadow-sm">
-            <div className="flex items-start gap-4">
+          <div className="bg-surface border-2 border-border rounded-xl p-5 md:p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start gap-4">
               <div className="w-14 h-14 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
                 <MapPin className="text-white" size={28} strokeWidth={2.5} />
               </div>
               <div className="flex-1">
-                <h1 className="text-2xl md:text-3xl font-bold text-text mb-2">
+                <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-text mb-2">
                   {location?.name}
                 </h1>
                 {location?.description && (
@@ -188,12 +230,12 @@ export default function BookingPage() {
                 )}
               </div>
               {location?.cost && (
-                <div className="text-right">
+                <div className="bg-primary/10 border-2 border-primary/30 rounded-lg px-4 py-2">
                   <p className="text-xs text-muted uppercase font-semibold mb-1">
                     Rate
                   </p>
-                  <div className="flex items-center gap-1 text-primary font-bold text-xl">
-                    <IndianRupee size={20} />
+                  <div className="flex items-center gap-1 text-primary font-bold text-lg">
+                    <IndianRupee size={18} />
                     <span>{location.cost}/hr</span>
                   </div>
                 </div>
@@ -289,8 +331,10 @@ export default function BookingPage() {
               <h2 className="text-2xl font-bold text-text">
                 Select Parking Spot
               </h2>
-              <div className="text-sm font-medium text-muted">
-                {availableSpots.length} available
+              <div className="px-3 py-1.5 bg-success/10 border border-success/30 rounded-lg">
+                <span className="text-success font-bold text-sm">
+                  {availableSpots.length} available
+                </span>
               </div>
             </div>
 
@@ -381,15 +425,25 @@ export default function BookingPage() {
                   <Calendar size={16} className="text-primary" />
                   Start Date & Time
                 </label>
-                <input
-                  type="datetime-local"
-                  value={bookingData.time}
-                  onChange={(e) =>
-                    setBookingData({ ...bookingData, time: e.target.value })
-                  }
-                  min={new Date().toISOString().slice(0, 16)}
-                  className="w-full px-4 py-3 bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary text-text transition-colors"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="datetime-local"
+                    value={bookingData.time}
+                    onChange={(e) =>
+                      setBookingData({ ...bookingData, time: e.target.value })
+                    }
+                    min={new Date().toISOString().slice(0, 16)}
+                    className="flex-1 px-4 py-3 bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary text-text transition-colors"
+                  />
+                  <button
+                    onClick={setCurrentTime}
+                    className="px-4 py-3 bg-accent/20 border-2 border-accent/30 text-accent rounded-lg hover:bg-accent/30 transition-colors flex items-center gap-2 font-medium"
+                    title="Set to current time"
+                  >
+                    <TimerReset size={20} />
+                    <span className="hidden sm:inline text-sm">Now</span>
+                  </button>
+                </div>
               </div>
 
               {/* Duration */}
@@ -398,19 +452,35 @@ export default function BookingPage() {
                   <Clock size={16} className="text-primary" />
                   Duration (hours)
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="24"
-                  value={bookingData.duration}
-                  onChange={(e) =>
-                    setBookingData({
-                      ...bookingData,
-                      duration: parseInt(e.target.value) || 1,
-                    })
-                  }
-                  className="w-full px-4 py-3 bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary text-text transition-colors"
-                />
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => adjustDuration(-1)}
+                    disabled={bookingData.duration <= 1}
+                    className="w-12 h-12 bg-background border-2 border-border rounded-lg flex items-center justify-center hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Minus size={20} className="text-text" strokeWidth={2.5} />
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    max="24"
+                    value={bookingData.duration}
+                    onChange={(e) =>
+                      setBookingData({
+                        ...bookingData,
+                        duration: parseInt(e.target.value) || 1,
+                      })
+                    }
+                    className="flex-1 px-4 py-3 bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary text-text text-center font-bold text-lg transition-colors"
+                  />
+                  <button
+                    onClick={() => adjustDuration(1)}
+                    disabled={bookingData.duration >= 24}
+                    className="w-12 h-12 bg-background border-2 border-border rounded-lg flex items-center justify-center hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Plus size={20} className="text-text" strokeWidth={2.5} />
+                  </button>
+                </div>
               </div>
 
               {/* Cost Preview */}
@@ -422,7 +492,7 @@ export default function BookingPage() {
                         Estimated Cost
                       </p>
                       <p className="text-sm text-muted">
-                        ₹{location.cost}/hr × {bookingData.duration} hr
+                        रु {location.cost}/hr × {bookingData.duration} hr
                         {bookingData.duration > 1 ? "s" : ""}
                       </p>
                     </div>
@@ -475,9 +545,9 @@ export default function BookingPage() {
                   <span className="text-muted text-sm">Vehicle Type</span>
                   <span className="text-text font-bold capitalize flex items-center gap-2">
                     {bookingData.type === "car" ? (
-                      <Car size={16} />
+                      <Car size={16} strokeWidth={2.5} />
                     ) : (
-                      <Bike size={16} />
+                      <Bike size={16} strokeWidth={2.5} />
                     )}
                     {bookingData.type}
                   </span>
@@ -515,7 +585,7 @@ export default function BookingPage() {
                       Total Amount
                     </p>
                     <p className="text-xs text-white/60">
-                      ₹{location?.cost}/hr × {bookingData.duration} hr
+                      रु {location?.cost}/hr × {bookingData.duration} hr
                       {bookingData.duration > 1 ? "s" : ""}
                     </p>
                   </div>

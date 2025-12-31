@@ -1,25 +1,26 @@
-import QRCodeStyling from 'qr-code-styling';
+import QRCodeStyling from "qr-code-styling";
 
 const generateQr = (data) => {
     const qrCode = new QRCodeStyling({
-        width: 100,
-        height: 100,
+        width: 220,
+        height: 220,
         type: "svg",
         data: data,
-        image: "",//put svg img of website's logo
+        image: "", //put svg img of website's logo
         dotsOptions: {
             color: "black",
-            type: "rounded"
+            type: "rounded",
         },
         backgroundOptions: {
             color: "white",
         },
         imageOptions: {
             crossOrigin: "anonymous",
-            margin: 20
-        }
+            margin: 20,
+        },
     });
     return qrCode;
-}
+};
 
 export default generateQr;
+

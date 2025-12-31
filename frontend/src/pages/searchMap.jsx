@@ -8,6 +8,8 @@ import {
   AlertCircle,
   Car,
   Bike,
+  IndianRupee,
+  ArrowRight,
 } from "lucide-react";
 import Header from "../components/layout/header.jsx";
 import "leaflet/dist/leaflet.css";
@@ -194,7 +196,7 @@ export default function SearchMap() {
       <>
         <Header />
         <div className="h-[calc(100vh-80px)] bg-background flex items-center justify-center px-4">
-          <div className="bg-error bg-opacity-10 border border-error rounded-lg p-8 max-w-md text-center">
+          <div className="bg-error/10 border-2 border-error rounded-xl p-8 max-w-md text-center shadow-lg">
             <AlertCircle className="text-error mx-auto mb-4" size={48} />
             <p className="text-text font-semibold mb-2">Unable to Load Map</p>
             <p className="text-muted text-sm mb-4">
@@ -202,7 +204,7 @@ export default function SearchMap() {
             </p>
             <button
               onClick={() => navigate("/")}
-              className="bg-primary text-white px-6 py-2 rounded-lg hover:opacity-90 transition-opacity"
+              className="bg-gradient-to-r from-primary to-accent text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition-all"
             >
               Go Back Home
             </button>
@@ -217,21 +219,23 @@ export default function SearchMap() {
       <>
         <Header />
         <div className="h-[calc(100vh-80px)] bg-background flex items-center justify-center px-4">
-          <div className="bg-surface border border-border rounded-lg p-8 max-w-md text-center">
-            <div className="w-16 h-16 bg-muted bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="bg-surface border-2 border-border rounded-xl p-8 max-w-md text-center shadow-lg">
+            <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
               {vehicleType === "car" ? (
-                <Car className="text-black" size={32} />
+                <Car className="text-primary" size={40} strokeWidth={2.5} />
               ) : (
-                <Bike className="text-black" size={32} />
+                <Bike className="text-secondary" size={40} strokeWidth={2.5} />
               )}
             </div>
-            <p className="text-text font-semibold mb-2">No Parking Available</p>
+            <p className="text-text font-bold text-lg mb-2">
+              No Parking Available
+            </p>
             <p className="text-muted text-sm mb-4">
               No available {vehicleType} parking spots found in this area
             </p>
             <button
               onClick={() => navigate("/")}
-              className="bg-primary text-white px-6 py-2 rounded-lg hover:opacity-90 transition-opacity"
+              className="bg-gradient-to-r from-primary to-accent text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition-all"
             >
               Search Again
             </button>
@@ -246,27 +250,40 @@ export default function SearchMap() {
       {/* Header */}
       <Header />
 
-      {/* Vehicle Type Badge */}
-      <div className="bg-surface border-b border-border px-4 py-3">
+      {/* Vehicle Type Badge Bar */}
+      <div className="bg-surface border-b-2 border-border px-4 py-3 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-primary bg-opacity-10 px-3 py-1.5 rounded-full">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm ${
+                vehicleType === "car"
+                  ? "bg-gradient-to-r from-primary/20 to-primary/10 border-2 border-primary/30"
+                  : "bg-gradient-to-r from-secondary/20 to-secondary/10 border-2 border-secondary/30"
+              }`}
+            >
               {vehicleType === "car" ? (
-                <Car className="text-primary" size={18} />
+                <Car className="text-primary" size={20} strokeWidth={2.5} />
               ) : (
-                <Bike className="text-primary" size={18} />
+                <Bike className="text-secondary" size={20} strokeWidth={2.5} />
               )}
-              <span className="text-primary font-semibold capitalize text-sm">
+              <span
+                className={`font-bold capitalize text-sm ${
+                  vehicleType === "car" ? "text-primary" : "text-secondary"
+                }`}
+              >
                 {vehicleType} Parking
               </span>
             </div>
-            <span className="text-muted text-sm">
-              {parkingLocations.length} location(s) available
-            </span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-success/10 border border-success/30 rounded-lg">
+              <span className="w-2 h-2 bg-success rounded-full animate-pulse" />
+              <span className="text-success font-semibold text-sm">
+                {parkingLocations.length} Available
+              </span>
+            </div>
           </div>
           <button
             onClick={() => navigate("/")}
-            className="text-muted hover:text-text text-sm transition-colors"
+            className="text-muted hover:text-primary text-sm font-medium transition-colors hidden sm:block"
           >
             Change Search
           </button>
@@ -291,9 +308,11 @@ export default function SearchMap() {
           {/* User Location Marker */}
           <Marker position={userLocation} icon={userIcon}>
             <Popup>
-              <div className="text-center">
-                <Navigation className="text-primary mx-auto mb-1" size={20} />
-                <p className="font-semibold text-sm">Your Location</p>
+              <div className="text-center p-2">
+                <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Navigation className="text-primary" size={20} />
+                </div>
+                <p className="font-bold text-text text-sm">Your Location</p>
               </div>
             </Popup>
           </Marker>
@@ -312,30 +331,69 @@ export default function SearchMap() {
                 icon={parkingIcon}
                 eventHandlers={{
                   click: () => {
-                    navigate(`/booking/${location._id}?type=${vehicleType}`);
+                    navigate(`/location/${location._id}?type=${vehicleType}`);
                   },
                 }}
               >
                 <Popup>
-                  <div className="min-w-[200px]">
-                    <h3 className="font-bold text-text mb-1">
+                  <div className="min-w-[220px] p-2">
+                    <h3 className="font-bold text-text text-base mb-2">
                       {location.name}
                     </h3>
                     {location.description && (
-                      <p className="text-xs text-muted mb-2">
+                      <p className="text-xs text-muted mb-3 leading-relaxed">
                         {location.description}
                       </p>
                     )}
-                    <p className="text-xs text-muted mb-2">
-                      {availableSpots} {vehicleType} spot(s) available
-                    </p>
+
+                    <div className="space-y-2 mb-3">
+                      <div className="flex items-center justify-between bg-success/10 border border-success/30 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          {vehicleType === "car" ? (
+                            <Car
+                              className="text-success"
+                              size={16}
+                              strokeWidth={2.5}
+                            />
+                          ) : (
+                            <Bike
+                              className="text-success"
+                              size={16}
+                              strokeWidth={2.5}
+                            />
+                          )}
+                          <span className="text-xs font-semibold text-text">
+                            Available
+                          </span>
+                        </div>
+                        <span className="text-sm font-bold text-success">
+                          {availableSpots}
+                        </span>
+                      </div>
+
+                      {location.cost && (
+                        <div className="flex items-center justify-between bg-primary/10 border border-primary/30 rounded-lg px-3 py-2">
+                          <span className="text-xs font-semibold text-muted">
+                            Rate
+                          </span>
+                          <div className="flex items-center gap-1 text-primary font-bold text-sm">
+                            <IndianRupee size={14} />
+                            <span>{location.cost}/hr</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       onClick={() =>
-                        navigate(`/booking/${location._id}?type=${vehicleType}`)
+                        navigate(
+                          `/location/${location._id}?type=${vehicleType}`,
+                        )
                       }
-                      className="w-full bg-primary text-white px-4 py-2 rounded text-sm font-medium hover:opacity-90 transition-opacity"
+                      className="w-full bg-gradient-to-r from-primary to-accent text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
                     >
-                      Book Here
+                      View & Book
+                      <ArrowRight size={16} />
                     </button>
                   </div>
                 </Popup>
@@ -346,38 +404,74 @@ export default function SearchMap() {
 
         {/* Floating nearest location card */}
         {nearestLocation && (
-          <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-surface border border-border rounded-lg p-4 shadow-xl z-[1000]">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-primary bg-opacity-10 rounded-lg flex items-center justify-center flex-shrink-0">
-                <MapPin className="text-primary" size={20} />
+          <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-surface border-2 border-border rounded-xl p-5 shadow-2xl z-[1000] animate-fadeIn">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                <MapPin className="text-white" size={24} strokeWidth={2.5} />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-text mb-1">
-                  Nearest Location
-                </h3>
-                <p className="text-sm font-medium text-text">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-1 bg-success/20 border border-success/30 rounded-md text-success text-xs font-bold">
+                    NEAREST
+                  </span>
+                </div>
+                <h3 className="font-bold text-text text-base mb-1">
                   {nearestLocation.name}
-                </p>
-                <p className="text-xs text-muted mb-1">
-                  {nearestLocation.distance.toFixed(1)} km away
-                </p>
-                <p className="text-xs text-muted mb-3">
-                  {
-                    nearestLocation.parkingSpots.filter(
-                      (spot) => spot.type === vehicleType && !spot.isOccupied,
-                    ).length
-                  }{" "}
-                  {vehicleType} spot(s) available
-                </p>
+                </h3>
+
+                <div className="space-y-2 mb-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Navigation className="text-primary" size={14} />
+                    <span className="text-muted font-medium">
+                      {nearestLocation.distance.toFixed(1)} km away
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    {vehicleType === "car" ? (
+                      <Car
+                        className="text-success"
+                        size={14}
+                        strokeWidth={2.5}
+                      />
+                    ) : (
+                      <Bike
+                        className="text-success"
+                        size={14}
+                        strokeWidth={2.5}
+                      />
+                    )}
+                    <span className="text-muted font-medium">
+                      {
+                        nearestLocation.parkingSpots.filter(
+                          (spot) =>
+                            spot.type === vehicleType && !spot.isOccupied,
+                        ).length
+                      }{" "}
+                      spots available
+                    </span>
+                  </div>
+
+                  {nearestLocation.cost && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <IndianRupee className="text-primary" size={14} />
+                      <span className="text-muted font-medium">
+                        रु {nearestLocation.cost} per hour
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={() =>
                     navigate(
-                      `/booking/${nearestLocation._id}?type=${vehicleType}`,
+                      `/location/${nearestLocation._id}?type=${vehicleType}`,
                     )
                   }
-                  className="w-full bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+                  className="w-full bg-gradient-to-r from-primary to-accent text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
                 >
-                  Book Now
+                  View & Book
+                  <ArrowRight size={16} />
                 </button>
               </div>
             </div>

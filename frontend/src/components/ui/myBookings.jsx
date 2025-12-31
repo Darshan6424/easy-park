@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Calendar,
   Clock,
@@ -8,13 +9,22 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Loader2,
+  IndianRupee,
+  Navigation,
+  Trash2,
+  Eye,
+  RefreshCw,
+  Timer,
 } from "lucide-react";
 
 export default function MyBookings() {
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     fetchBookings();
@@ -22,6 +32,7 @@ export default function MyBookings() {
 
   const fetchBookings = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/api/booking`,
@@ -36,11 +47,17 @@ export default function MyBookings() {
 
       const result = await response.json();
       console.log("Bookings Response:", result);
+      console.log(
+        "Sample booking data:",
+        result.data?.[0] || result.bookings?.[0],
+      );
 
       if (response.ok) {
-        // Handle both response formats
         const bookingsData = result.data || result.bookings || result;
         setBookings(Array.isArray(bookingsData) ? bookingsData : []);
+        console.log("First booking raw data:", bookingsData[0]);
+        console.log("parkingSpot:", bookingsData[0]?.parkingSpot);
+        console.log("location:", bookingsData[0]?.location);
       } else {
         setError(result.message || "Failed to fetch bookings");
       }
@@ -52,29 +69,67 @@ export default function MyBookings() {
     }
   };
 
+  const handleDeleteBooking = async (bookingId) => {
+    if (!confirm("Are you sure you want to cancel this booking?")) return;
+
+    setDeletingId(bookingId);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/booking/${bookingId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+
+      if (response.ok) {
+        setBookings(bookings.filter((b) => b._id !== bookingId));
+        alert("Booking cancelled successfully!");
+      } else {
+        const result = await response.json();
+        alert(result.message || "Failed to cancel booking");
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert("Network error. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const getStatusIcon = (status) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case "active":
-        return <CheckCircle className="text-primary" size={20} />;
+        return (
+          <CheckCircle className="text-success" size={20} strokeWidth={2.5} />
+        );
       case "completed":
-        return <CheckCircle className="text-muted" size={20} />;
+        return (
+          <CheckCircle className="text-muted" size={20} strokeWidth={2.5} />
+        );
       case "expired":
-        return <XCircle className="text-error" size={20} />;
+        return <XCircle className="text-error" size={20} strokeWidth={2.5} />;
+      case "cancelled":
+        return <XCircle className="text-warning" size={20} strokeWidth={2.5} />;
       default:
-        return <AlertCircle className="text-muted" size={20} />;
+        return (
+          <AlertCircle className="text-muted" size={20} strokeWidth={2.5} />
+        );
     }
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case "active":
-        return "bg-primary bg-opacity-10 text-primary border-primary";
+        return "bg-success/10 text-success border-success";
       case "completed":
-        return "bg-muted bg-opacity-10 text-muted border-muted";
+        return "bg-muted/10 text-muted border-muted";
       case "expired":
-        return "bg-error bg-opacity-10 text-error border-error";
+        return "bg-error/10 text-error border-error";
+      case "cancelled":
+        return "bg-warning/10 text-warning border-warning";
       default:
-        return "bg-muted bg-opacity-10 text-muted border-muted";
+        return "bg-muted/10 text-muted border-muted";
     }
   };
 
@@ -95,16 +150,125 @@ export default function MyBookings() {
     });
   };
 
+  const calculateDuration = (startTime, endTime) => {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diff = end - start;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    return hours;
+  };
+
+  const calculateCost = (booking) => {
+    // Try to get totalCost from booking
+    if (booking.totalCost && !isNaN(booking.totalCost)) {
+      return booking.totalCost;
+    }
+
+    // Calculate from duration and rate
+    const duration = calculateDuration(booking.startTime, booking.endTime);
+    const hourlyRate =
+      booking.parkingSpot?.hourlyRate ||
+      booking.hourlyRate ||
+      (booking.type?.toLowerCase() === "car" ? 50 : 30);
+
+    return duration * hourlyRate;
+  };
+
+  const getLocationName = (booking) => {
+    // Try different possible paths for location name
+    return (
+      booking.parkingSpot?.parkingLocation?.name ||
+      booking.parkingLocation?.name ||
+      booking.location?.name ||
+      "Parking Location"
+    );
+  };
+
+  const getSpotNumber = (booking) => {
+    return booking.parkingSpot?.spotNumber || booking.spotNumber || "N/A";
+  };
+
+  const getGracePeriodStatus = (booking) => {
+    if (booking.status?.toLowerCase() !== "active") return null;
+
+    const now = new Date();
+    const startTime = new Date(booking.startTime);
+    const timeDiff = now - startTime;
+    const minutesDiff = Math.floor(timeDiff / (1000 * 60));
+
+    const GRACE_PERIOD_MINUTES = 15;
+
+    // Not yet started
+    if (minutesDiff < 0) {
+      const minutesUntilStart = Math.abs(minutesDiff);
+      if (minutesUntilStart <= 30) {
+        return {
+          type: "upcoming",
+          message: `Starts in ${minutesUntilStart} min`,
+          color: "text-blue-600",
+          bgColor: "bg-blue-50",
+          borderColor: "border-blue-300",
+        };
+      }
+      return null;
+    }
+
+    // Within grace period
+    if (minutesDiff > 0 && minutesDiff <= GRACE_PERIOD_MINUTES) {
+      return {
+        type: "grace",
+        message: `Grace period: ${GRACE_PERIOD_MINUTES - minutesDiff} min left to check in`,
+        color: "text-orange-600",
+        bgColor: "bg-orange-50",
+        borderColor: "border-orange-300",
+      };
+    }
+
+    // Beyond grace period (late)
+    if (minutesDiff > GRACE_PERIOD_MINUTES) {
+      return {
+        type: "late",
+        message: `Started ${minutesDiff} min ago - time is running`,
+        color: "text-red-600",
+        bgColor: "bg-red-50",
+        borderColor: "border-red-300",
+      };
+    }
+
+    return null;
+  };
+
+  const getTimeRemaining = (endTime) => {
+    const now = new Date();
+    const end = new Date(endTime);
+    const diff = end - now;
+
+    if (diff <= 0) return "Expired";
+
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m remaining`;
+    }
+    return `${minutes}m remaining`;
+  };
+
   const filteredBookings = bookings.filter((booking) => {
     if (filter === "all") return true;
-    return booking.status === filter;
+    return booking.status?.toLowerCase() === filter;
   });
+
+  const getFilterCount = (status) => {
+    if (status === "all") return bookings.length;
+    return bookings.filter((b) => b.status?.toLowerCase() === status).length;
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
           <p className="text-muted">Loading bookings...</p>
         </div>
       </div>
@@ -113,133 +277,321 @@ export default function MyBookings() {
 
   if (error) {
     return (
-      <div className="bg-error bg-opacity-10 border border-error rounded-lg p-6 text-center">
-        <XCircle className="text-error mx-auto mb-2" size={48} />
-        <p className="text-text font-semibold mb-2">Failed to Load Bookings</p>
-        <p className="text-muted text-sm mb-4">{error}</p>
-        <button
-          onClick={fetchBookings}
-          className="bg-primary text-white px-6 py-2 rounded-lg hover:opacity-90 transition-opacity"
-        >
-          Try Again
-        </button>
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="bg-error/10 border-2 border-error rounded-xl p-8 max-w-md text-center shadow-lg">
+          <XCircle className="text-error mx-auto mb-4" size={48} />
+          <p className="text-text font-bold text-lg mb-2">
+            Failed to Load Bookings
+          </p>
+          <p className="text-muted text-sm mb-4">{error}</p>
+          <button
+            onClick={fetchBookings}
+            className="bg-gradient-to-r from-primary to-accent text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition-all"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 m-2 md:m-10">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl md:text-3xl font-bold text-text mb-2">
-          My Bookings
-        </h2>
-        <p className="text-muted">View and manage your parking reservations</p>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {["all", "active", "completed", "expired"].map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilter(status)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
-              filter === status
-                ? "bg-primary text-white"
-                : "bg-surface text-text hover:bg-border"
-            }`}
-          >
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {/* Bookings List */}
-      {filteredBookings.length === 0 ? (
-        <div className="bg-surface border border-border rounded-lg p-12 text-center">
-          <MapPin className="text-muted mx-auto mb-4" size={48} />
-          <p className="text-text font-semibold mb-2">No Bookings Found</p>
+    <div className="min-h-screen bg-background py-6 md:py-12">
+      <div className="max-w-7xl mx-auto px-4">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-3xl md:text-4xl font-bold text-text">
+              My Bookings
+            </h1>
+            <button
+              onClick={fetchBookings}
+              disabled={loading}
+              className="p-2 text-muted hover:text-primary transition-colors"
+              title="Refresh bookings"
+            >
+              <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+            </button>
+          </div>
           <p className="text-muted">
-            {filter === "all"
-              ? "You haven't made any bookings yet"
-              : `No ${filter} bookings`}
+            View and manage your parking reservations
           </p>
         </div>
-      ) : (
-        <div className="grid gap-4">
-          {filteredBookings.map((booking) => (
-            <div
-              key={booking._id}
-              className="bg-surface border border-border rounded-lg p-4 md:p-6 hover:border-primary transition-colors"
-            >
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                {/* Left: Parking Details */}
-                <div className="flex-1">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-10 h-10 bg-primary bg-opacity-10 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <MapPin className="text-primary" size={20} />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-text text-lg">
-                        {booking.parkingSpot?.name || "Parking Spot"}
-                      </h3>
-                      <p className="text-muted text-sm">
-                        {booking.parkingSpot?.location || "Location"}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      {booking.type === "Car" ? (
-                        <Car className="text-muted" size={16} />
-                      ) : (
-                        <Bike className="text-muted" size={16} />
-                      )}
-                      <span className="text-text">{booking.type}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Calendar className="text-muted" size={16} />
-                      <span className="text-text">
-                        {formatDate(booking.startTime)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Clock className="text-muted" size={16} />
-                      <span className="text-text">
-                        {formatTime(booking.startTime)} -{" "}
-                        {formatTime(booking.endTime)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Status */}
-                <div className="flex flex-col items-end gap-3">
-                  <div
-                    className={`px-4 py-2 rounded-lg border flex items-center gap-2 ${getStatusColor(
-                      booking.status,
-                    )}`}
-                  >
-                    {getStatusIcon(booking.status)}
-                    <span className="font-medium capitalize">
-                      {booking.status}
-                    </span>
-                  </div>
-
-                  {booking.status === "active" && (
-                    <button className="bg-primary text-white px-6 py-2 rounded-lg hover:opacity-90 transition-opacity text-sm font-medium">
-                      View Ticket
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* Filter Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
+          {["all", "active", "expired", "completed"].map((status) => {
+            const count = getFilterCount(status);
+            return (
+              <button
+                key={status}
+                onClick={() => setFilter(status)}
+                className={`px-4 py-2.5 rounded-xl font-semibold transition-all whitespace-nowrap flex items-center gap-2 ${
+                  filter === status
+                    ? "bg-gradient-to-r from-primary to-accent text-white shadow-md"
+                    : "bg-surface border-2 border-border text-text hover:border-primary"
+                }`}
+              >
+                <span className="capitalize">{status}</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                    filter === status
+                      ? "bg-white/20"
+                      : "bg-primary/10 text-primary"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        {/* Bookings List */}
+        {filteredBookings.length === 0 ? (
+          <div className="bg-surface border-2 border-border rounded-xl p-12 text-center shadow-sm">
+            <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <MapPin className="text-primary" size={40} strokeWidth={2.5} />
+            </div>
+            <p className="text-text font-bold text-lg mb-2">
+              No Bookings Found
+            </p>
+            <p className="text-muted mb-6">
+              {filter === "all"
+                ? "You haven't made any bookings yet"
+                : `No ${filter} bookings`}
+            </p>
+            {filter === "all" && (
+              <button
+                onClick={() => navigate("/")}
+                className="bg-gradient-to-r from-primary to-accent text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition-all"
+              >
+                Find Parking
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid gap-6">
+            {filteredBookings.map((booking) => {
+              const locationName = getLocationName(booking);
+              const spotNumber = getSpotNumber(booking);
+              const totalCost = calculateCost(booking);
+              const duration = calculateDuration(
+                booking.startTime,
+                booking.endTime,
+              );
+              const gracePeriodStatus = getGracePeriodStatus(booking);
+
+              return (
+                <div
+                  key={booking._id}
+                  className="bg-surface border-2 border-border rounded-xl p-5 md:p-6 hover:border-primary transition-all shadow-sm hover:shadow-md"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                    {/* Left: Parking Details */}
+                    <div className="flex-1">
+                      {/* Location Header */}
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className="w-14 h-14 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                          <MapPin
+                            className="text-white"
+                            size={28}
+                            strokeWidth={2.5}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-bold text-text text-lg mb-1">
+                            {locationName}
+                          </h3>
+                          <p className="text-muted text-sm flex items-center gap-1">
+                            <Navigation size={14} />
+                            Spot: {spotNumber}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Grace Period Alert */}
+                      {gracePeriodStatus && (
+                        <div
+                          className={`mb-4 p-3 rounded-lg border ${gracePeriodStatus.bgColor} ${gracePeriodStatus.borderColor}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Timer
+                              className={gracePeriodStatus.color}
+                              size={18}
+                              strokeWidth={2.5}
+                            />
+                            <p
+                              className={`font-semibold text-sm ${gracePeriodStatus.color}`}
+                            >
+                              {gracePeriodStatus.message}
+                            </p>
+                          </div>
+                          {gracePeriodStatus.type === "grace" && (
+                            <p className="text-xs mt-1 text-orange-600">
+                              💡 Scan QR at parking to start your full duration
+                            </p>
+                          )}
+                          {gracePeriodStatus.type === "late" && (
+                            <p className="text-xs mt-1 text-red-600">
+                              ⚠️ You're past the 15-min grace period. Time is
+                              counting down.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Booking Info Grid */}
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {/* Vehicle Type */}
+                        <div className="bg-background border border-border rounded-lg p-3">
+                          <p className="text-xs text-muted uppercase font-semibold mb-2">
+                            Vehicle
+                          </p>
+                          <div className="flex items-center gap-2">
+                            {booking.type?.toLowerCase() === "car" ? (
+                              <Car
+                                className="text-primary"
+                                size={20}
+                                strokeWidth={2.5}
+                              />
+                            ) : (
+                              <Bike
+                                className="text-secondary"
+                                size={20}
+                                strokeWidth={2.5}
+                              />
+                            )}
+                            <span className="text-text font-bold capitalize">
+                              {booking.type}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Date */}
+                        <div className="bg-background border border-border rounded-lg p-3">
+                          <p className="text-xs text-muted uppercase font-semibold mb-2">
+                            Date
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Calendar
+                              className="text-primary"
+                              size={20}
+                              strokeWidth={2.5}
+                            />
+                            <span className="text-text font-bold text-sm">
+                              {formatDate(booking.startTime)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Time */}
+                        <div className="bg-background border border-border rounded-lg p-3">
+                          <p className="text-xs text-muted uppercase font-semibold mb-2">
+                            Time
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Clock
+                              className="text-primary"
+                              size={20}
+                              strokeWidth={2.5}
+                            />
+                            <span className="text-text font-bold text-sm">
+                              {formatTime(booking.startTime)} -{" "}
+                              {formatTime(booking.endTime)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Cost */}
+                        <div className="bg-background border border-border rounded-lg p-3">
+                          <p className="text-xs text-muted uppercase font-semibold mb-2">
+                            Total Cost • {duration}h
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <IndianRupee
+                              className="text-primary"
+                              size={20}
+                              strokeWidth={2.5}
+                            />
+                            <span className="text-text font-bold text-lg">
+                              {totalCost}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Time Remaining (Active only) */}
+                      {booking.status?.toLowerCase() === "active" &&
+                        !gracePeriodStatus && (
+                          <div className="mt-4 bg-gradient-to-r from-success/10 to-success/5 border border-success/30 rounded-lg p-3">
+                            <p className="text-success font-semibold text-sm flex items-center gap-2">
+                              <Clock size={16} strokeWidth={2.5} />
+                              {getTimeRemaining(booking.endTime)}
+                            </p>
+                          </div>
+                        )}
+                    </div>
+
+                    {/* Right: Status & Actions */}
+                    <div className="flex flex-col gap-3 lg:items-end">
+                      {/* Status Badge */}
+                      <div
+                        className={`px-4 py-2.5 rounded-xl border-2 flex items-center gap-2 ${getStatusColor(
+                          booking.status,
+                        )} shadow-sm`}
+                      >
+                        {getStatusIcon(booking.status)}
+                        <span className="font-bold capitalize text-sm">
+                          {booking.status}
+                        </span>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        {booking.status?.toLowerCase() === "active" && (
+                          <>
+                            <button
+                              onClick={() =>
+                                navigate(`/booking/${booking._id}`)
+                              }
+                              className="flex-1 lg:flex-none bg-gradient-to-r from-primary to-accent text-white px-5 py-2.5 rounded-lg hover:shadow-lg transition-all font-bold text-sm flex items-center justify-center gap-2"
+                            >
+                              <Eye size={16} />
+                              View Ticket
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBooking(booking._id)}
+                              disabled={deletingId === booking._id}
+                              className="px-4 py-2.5 bg-error/10 border-2 border-error/30 text-error rounded-lg hover:bg-error/20 transition-all font-medium disabled:opacity-50 flex items-center justify-center"
+                              title="Cancel booking"
+                            >
+                              {deletingId === booking._id ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={16} strokeWidth={2.5} />
+                              )}
+                            </button>
+                          </>
+                        )}
+                        {booking.status?.toLowerCase() === "completed" && (
+                          <button
+                            onClick={() => navigate("/my-bookings")}
+                            className="flex-1 lg:flex-none bg-background border-2 border-border text-text px-5 py-2.5 rounded-lg hover:border-primary transition-all font-medium text-sm flex items-center justify-center gap-2"
+                          >
+                            <Eye size={16} />
+                            View Details
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
