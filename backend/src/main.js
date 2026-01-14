@@ -1,4 +1,6 @@
 import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -50,6 +52,13 @@ dbConnection()
         process.exit(1);
     });
 
-import mongoose from "mongoose";
+const __filename = fileURLToPath(import.meta.url);
 
-console.log(mongoose.modelNames());
+const __dirname = path.dirname(__filename);
+
+app.use(express.static(path.join(__dirname, "../../frontend/dist")));
+
+// Catch-all route for SPA - must be AFTER all API routes
+app.get(/^\/(?!api).*/, (req, res) => {
+    res.sendFile(path.join(__dirname, "../../frontend/dist/index.html"));
+});

@@ -1,8 +1,10 @@
+// frontend/src/App.jsx
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-
+import { AuthProvider } from "./hooks/useAuth";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import Layout from "./components/layout/layout.jsx";
-
 import Login from "./pages/login.jsx";
 import Register from "./pages/register.jsx";
 import Landing from "./pages/landing.jsx";
@@ -23,142 +25,143 @@ import RegisterOwner from "./pages/register-owner.jsx";
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <Layout>
-              <Landing />
-            </Layout>
-          }
+      <AuthProvider>
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
         />
-
-        <Route
-          path="/login"
-          element={
-            <Layout>
-              <Login />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/register"
-          element={
-            <Layout>
-              <Register />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/home"
-          element={
-            <Layout>
-              <Home />
-            </Layout>
-          }
-        />
-
-        <Route path="/map" element={<SearchMap />} />
-
-        <Route
-          path="/book"
-          element={
-            <Layout>
-              <BookingPage />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/profile"
-          element={
-            <Layout>
-              <Profile />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/booking/:bookingId"
-          element={
-            <Layout>
-              <Ticket />
-            </Layout>
-          }
-        />
-        <Route
-          path="/my-bookings"
-          element={
-            <Layout>
-              <MyBookingsComponent />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/locations"
-          element={
-            <Layout>
-              <Locations />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/location/:locationId"
-          element={
-            <Layout>
-              <LocationDetail />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/add-location"
-          element={
-            <layout>
-              <AddLocation />
-            </layout>
-          }
-        />
-
-        <Route
-          path="/scan"
-          element={
-            <Layout>
-              <QRScannerPage />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/about"
-          element={
-            <Layout>
-              <About />
-            </Layout>
-          }
-        />
-        <Route
-          path="/faq"
-          element={
-            <Layout>
-              <FAQ />
-            </Layout>
-          }
-        />
-
-        <Route
-          path="/register-owner"
-          element={
-            <Layout>
-              <RegisterOwner />
-            </Layout>
-          }
-        />
-      </Routes>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <Layout>
+                <Landing />
+              </Layout>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <Layout>
+                <Login />
+              </Layout>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <Layout>
+                <Register />
+              </Layout>
+            }
+          />
+          <Route
+            path="/home"
+            element={
+              <Layout>
+                <Home />
+              </Layout>
+            }
+          />
+          <Route path="/map" element={<SearchMap />} />
+          <Route
+            path="/book"
+            element={
+              <Layout>
+                <BookingPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <Layout>
+                <Profile />
+              </Layout>
+            }
+          />
+          <Route
+            path="/booking/:bookingId"
+            element={
+              <Layout>
+                <Ticket />
+              </Layout>
+            }
+          />
+          <Route
+            path="/my-bookings"
+            element={
+              <Layout>
+                <MyBookingsComponent />
+              </Layout>
+            }
+          />
+          <Route
+            path="/locations"
+            element={
+              <Layout>
+                <Locations />
+              </Layout>
+            }
+          />
+          <Route
+            path="/location/:locationId"
+            element={
+              <Layout>
+                <LocationDetail />
+              </Layout>
+            }
+          />
+          <Route
+            path="/add-location"
+            element={
+              <Layout>
+                <AddLocation />
+              </Layout>
+            }
+          />
+          <Route
+            path="/scan"
+            element={
+              <Layout>
+                <QRScannerPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/about"
+            element={
+              <Layout>
+                <About />
+              </Layout>
+            }
+          />
+          <Route
+            path="/faq"
+            element={
+              <Layout>
+                <FAQ />
+              </Layout>
+            }
+          />
+          <Route
+            path="/register-owner"
+            element={
+              <Layout>
+                <RegisterOwner />
+              </Layout>
+            }
+          />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

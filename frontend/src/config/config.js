@@ -1,5 +1,9 @@
+// frontend/src/config/config.js
 const APP_CONFIG = {
-    name: "Easy Park",
+    name: {
+        english: "Easy Park",
+        nepali: "इजी पार्क",
+    },
     email: "support@easypark.com",
     phone: "+977 9822222222",
     address: "Lalitpur, Nepal",
@@ -7,6 +11,14 @@ const APP_CONFIG = {
         twitter: "https://twitter.com/easypark",
         facebook: "https://facebook.com/easypark",
         instagram: "https://instagram.com/easypark",
+    },
+    colors: {
+        primary: "#DC143C",
+        primaryDark: "#B01030",
+        secondary: "#2C3E50",
+    },
+    api: {
+        baseURL: "http://localhost:8000",
     },
 };
 

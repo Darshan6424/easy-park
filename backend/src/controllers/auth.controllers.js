@@ -64,7 +64,7 @@ export async function signin(req, res) {
             httpOnly: true,
             sameSite: "strict",
         });
-        res.status(200).json({ user: user });
+        res.status(200).json({ sucess: true, user: user });
     } catch (error) {
         console.log("Error during login : ", error.message);
         res.status(500).json({ message: "Internal server error" });

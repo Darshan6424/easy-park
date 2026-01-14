@@ -1,3 +1,4 @@
+// frontend/src/components/layout/footer.jsx
 import { Mail, Phone, MapPin } from "lucide-react";
 import APP_CONFIG from "../../config/config.js";
 
@@ -11,7 +12,7 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <h3 className="text-xl md:text-2xl font-bold text-primary mb-3 md:mb-4">
-              {APP_CONFIG.name}
+              {APP_CONFIG.name.english}
             </h3>
             <p className="text-background opacity-80 text-sm md:text-base">
               Book your parking spot in advance. Park hassle-free at your
@@ -87,7 +88,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="border-t border-background mt-6 md:mt-8 pt-6 md:pt-8 text-center text-background opacity-70">
           <p className="text-xs md:text-base">
-            © 2024 Smart Parking Booking • Hackathon Project
+            © {currentYear} {APP_CONFIG.name.english} • Smart Parking Solution
           </p>
         </div>
       </div>

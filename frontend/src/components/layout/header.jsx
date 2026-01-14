@@ -1,3 +1,4 @@
+// frontend/src/components/layout/header.jsx
 import { useState, useEffect, useRef } from "react";
 import { Menu, X, User, LogOut, ScanLine } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -55,7 +56,7 @@ export default function Header() {
                 EP
               </div>
               <span className="text-2xl font-bold text-primary">
-                {APP_CONFIG.name}
+                {APP_CONFIG.name.english}
               </span>
             </Link>
 

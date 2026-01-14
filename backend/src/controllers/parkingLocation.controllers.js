@@ -2,8 +2,10 @@ import * as parkingLocationService from "../services/parkingLocation.services.js
 
 async function addLocation(req, res) {
     try {
-        const location = await parkingLocationService.createLocation(req.body);
-
+        const location = await parkingLocationService.createLocation(
+            req.user.id, // Pass owner ID as first parameter
+            req.body,
+        );
         res.status(201).json({
             message: "Parking location created successfully",
             data: location,
@@ -19,7 +21,6 @@ async function addLocation(req, res) {
 async function getLocations(_, res) {
     try {
         const locations = await parkingLocationService.getAllLocations();
-
         res.status(200).json({
             count: locations.length,
             data: locations,
@@ -37,7 +38,6 @@ async function deleteLocation(req, res) {
     try {
         const { id } = req.params;
         const result = await parkingLocationService.deleteLocation(id);
-
         res.status(200).json({
             message: result.message,
         });
@@ -56,14 +56,13 @@ async function updateLocation(req, res) {
             id,
             req.body,
         );
-
         res.status(200).json({
             message: "Location Updated Successfully",
             data: result,
         });
     } catch (error) {
         res.status(500).json({
-            message: "Error deleting parking location",
+            message: "Error updating parking location",
             error: error.message,
         });
     }
