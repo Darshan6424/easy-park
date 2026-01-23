@@ -18,7 +18,7 @@ const APP_CONFIG = {
         secondary: "#2C3E50",
     },
     api: {
-        baseURL: "http://localhost:8000",
+        baseURL: "http://localhost:8000/api",
     },
 };
 

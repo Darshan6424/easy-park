@@ -121,7 +121,7 @@ function Register() {
           <h1 className="text-3xl md:text-4xl font-bold text-text mb-2">
             Create Account
           </h1>
-          <p className="text-muted">Sign up for {APP_CONFIG.name}</p>
+          <p className="text-muted">Sign up for {APP_CONFIG.name.english}</p>
         </div>
         <div className="bg-surface border border-border rounded-lg p-6 md:p-8 shadow-sm">
           <div className="space-y-5">

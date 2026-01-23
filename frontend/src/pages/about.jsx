@@ -50,10 +50,10 @@ export default function About() {
         <div className="max-w-4xl mx-auto text-center animate-fadeIn">
           <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm mb-6">
             <Sparkles className="w-4 h-4" />
-            Hackathon 2026 Project
+            Locus 2026 Project
           </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            Smart Parking Booking
+            ParkMeIn
           </h1>
           <p className="text-xl text-white/90">
             Find, book, and manage parking spots with ease
@@ -163,7 +163,7 @@ export default function About() {
                   </p>
                 </div>
                 <a
-                  href="https://github.com/dayaj1222/easy-park"
+                  href="https://github.com/darshan6424/easy-park"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 bg-text text-background px-5 py-2.5 rounded-lg font-medium hover:opacity-90 transition-opacity"
@@ -185,19 +185,19 @@ export default function About() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 {[
                   {
-                    name: "Daya Joshi",
-                    github: "https://github.com/dayaj1222",
-                  },
-                  {
                     name: "Darshan Subedi",
                     github: "https://github.com/darshan6424",
                   },
                   {
-                    name: "Kshitiz Khatri",
+                    name: "Dibesh Panta",
+                    
+                  },
+                  {
+                    name: "Sampanna Puri",
                     github: "https://github.com/kshitij886",
                   },
                   {
-                    name: "Bimin Koju",
+                    name: "Aditya Dahal",
                     github: "https://github.com/biminkoju",
                   },
                 ].map((member) => (
