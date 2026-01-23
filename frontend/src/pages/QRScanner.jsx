@@ -9,12 +9,15 @@ import {
   LogIn,
   LogOut,
   IndianRupee,
+  CreditCard,
 } from "lucide-react";
 
 export default function QRScannerPage() {
   const [scanning, setScanning] = useState(true);
   const [validating, setValidating] = useState(false);
   const [result, setResult] = useState(null);
+  const [payingFine, setPayingFine] = useState(false);
+  const [finePaid, setFinePaid] = useState(false);
 
   const scanBooking = async (bookingId, qrData) => {
     setValidating(true);
@@ -23,7 +26,9 @@ export default function QRScannerPage() {
         `${import.meta.env.VITE_API_BASE_URL}/api/booking/${bookingId}/scan`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           credentials: "include",
         },
       );
@@ -90,242 +95,284 @@ export default function QRScannerPage() {
   const resetScanner = () => {
     setScanning(true);
     setResult(null);
+    setFinePaid(false);
+  };
+
+  const handlePayFine = async () => {
+    setPayingFine(true);
+    
+    // Simulate payment processing (2 seconds)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    setPayingFine(false);
+    setFinePaid(true);
   };
 
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="max-w-2xl mx-auto px-4">
-        <h1 className="text-3xl font-bold text-text mb-2">Ticket Validator</h1>
-        <p className="text-muted mb-8">Scan QR code for entry or exit</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 text-center">
+          <ScanLine className="mx-auto mb-3" size={48} strokeWidth={2.5} />
+          <h1 className="text-2xl font-bold">Ticket Validator</h1>
+          <p className="text-blue-100 text-sm mt-1">
+            Scan QR code for entry or exit
+          </p>
+        </div>
 
-        {scanning && !validating && (
-          <div className="bg-surface border-2 border-border rounded-xl p-6 shadow-lg">
-            <div className="flex items-center gap-2 mb-4">
-              <ScanLine className="text-primary animate-pulse" size={24} />
-              <p className="font-bold text-text">Scanning...</p>
+        {/* Scanner Area */}
+        <div className="p-6">
+          {scanning && !validating && (
+            <div className="space-y-4">
+              <div className="relative rounded-xl overflow-hidden border-4 border-blue-500">
+                <Scanner
+                  onScan={handleScan}
+                  onError={handleError}
+                  constraints={{
+                    facingMode: "environment",
+                  }}
+                  components={{
+                    audio: false,
+                    finder: false,
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-center gap-2 text-blue-600">
+                <Loader2 className="animate-spin" size={20} />
+                <span className="font-medium">Scanning...</span>
+              </div>
             </div>
-            <div className="aspect-square max-w-md mx-auto rounded-xl overflow-hidden border-4 border-primary">
-              <Scanner
-                onScan={handleScan}
-                onError={handleError}
-                constraints={{ facingMode: "environment" }}
-                scanDelay={500}
+          )}
+
+          {validating && (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Loader2
+                className="animate-spin text-blue-600"
+                size={64}
+                strokeWidth={2.5}
               />
+              <p className="text-lg font-semibold text-gray-700">
+                Validating...
+              </p>
             </div>
-          </div>
-        )}
+          )}
 
-        {validating && (
-          <div className="bg-surface border-2 border-border rounded-xl p-12 text-center shadow-lg">
-            <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto mb-4" />
-            <p className="text-text font-bold text-lg">Validating...</p>
-          </div>
-        )}
-
-        {result && !validating && (
-          <div
-            className={`border-4 rounded-xl p-8 text-center shadow-2xl ${
-              result.valid
-                ? "bg-success/10 border-success"
-                : "bg-error/10 border-error"
-            }`}
-          >
-            {result.valid ? (
-              <>
-                {result.action === "check-in" ? (
-                  <LogIn
-                    className="text-success mx-auto mb-4"
-                    size={80}
-                    strokeWidth={3}
-                  />
+          {result && !validating && (
+            <div className="space-y-4">
+              {/* Result Icon & Status */}
+              <div className="flex flex-col items-center py-6">
+                {result.valid ? (
+                  <>
+                    {result.action === "check-in" ? (
+                      <LogIn
+                        className="text-blue-600"
+                        size={80}
+                        strokeWidth={3}
+                      />
+                    ) : (
+                      <LogOut
+                        className={`${result.fine > 0 ? "text-orange-500" : "text-success"}`}
+                        size={80}
+                        strokeWidth={3}
+                      />
+                    )}
+                  </>
                 ) : (
-                  <LogOut
-                    className={`mx-auto mb-4 ${result.fine > 0 ? "text-orange-500" : "text-success"}`}
+                  <XCircle
+                    className="text-red-500"
                     size={80}
                     strokeWidth={3}
                   />
                 )}
-              </>
-            ) : (
-              <XCircle
-                className="text-error mx-auto mb-4"
-                size={80}
-                strokeWidth={3}
-              />
-            )}
 
-            <h2
-              className={`text-3xl font-bold mb-2 ${
-                result.valid ? "text-success" : "text-error"
-              }`}
-            >
-              {result.action === "check-in"
-                ? "Checked In"
-                : result.action === "check-out"
-                  ? "Checked Out"
-                  : result.message}
-            </h2>
+                <h2 className="text-2xl font-bold mt-4 text-gray-800">
+                  {result.action === "check-in"
+                    ? "Checked In"
+                    : result.action === "check-out"
+                      ? "Checked Out"
+                      : result.message}
+                </h2>
+                <p className="text-gray-600 text-sm mt-1">{result.message}</p>
+              </div>
 
-            <p className="text-text mb-6">{result.message}</p>
-
-            {/* Grace Period Alert (Check-in) */}
-            {result.valid &&
-              result.action === "check-in" &&
-              result.graceApplied && (
-                <div className="mb-6 p-4 rounded-lg border-2 bg-blue-50 border-blue-300">
-                  <div className="flex items-center gap-3 justify-center">
-                    <Clock className="text-blue-600" size={24} />
-                    <div className="text-center">
-                      <p className="font-bold text-blue-900">
+              {/* Grace Period Alert (Check-in) */}
+              {result.valid &&
+                result.action === "check-in" &&
+                result.graceApplied && (
+                  <div className="p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Clock className="text-green-600" size={20} />
+                      <span className="font-semibold text-green-800">
                         Grace Period Applied!
-                      </p>
-                      <p className="text-sm text-blue-700">
-                        You arrived {result.minutesLate} min late. Full duration
-                        extended.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            {/* Late Warning (Check-in) */}
-            {result.valid &&
-              result.action === "check-in" &&
-              !result.graceApplied &&
-              result.minutesLate > 15 && (
-                <div className="mb-6 p-4 rounded-lg border-2 bg-orange-50 border-orange-300">
-                  <div className="flex items-center gap-3 justify-center">
-                    <Clock className="text-orange-600" size={24} />
-                    <div className="text-center">
-                      <p className="font-bold text-orange-900">Late Arrival</p>
-                      <p className="text-sm text-orange-700">
-                        You're {result.minutesLate} min late.{" "}
-                        {result.minutesLate - 15} min lost.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            {/* Fine Alert (Check-out) */}
-            {result.valid &&
-              result.action === "check-out" &&
-              result.fine > 0 && (
-                <div className="mb-6 p-6 rounded-lg border-4 bg-red-50 border-red-400">
-                  <div className="text-center">
-                    <p className="text-red-900 font-bold text-lg mb-2">
-                      ⚠️ Overstay Fine
-                    </p>
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <IndianRupee
-                        className="text-red-600"
-                        size={32}
-                        strokeWidth={3}
-                      />
-                      <span className="text-red-600 font-bold text-4xl">
-                        {result.fine}
                       </span>
                     </div>
-                    <p className="text-sm text-red-700">
+                    <p className="text-sm text-green-700 mt-1">
+                      You arrived {result.minutesLate} min late. Full duration
+                      extended.
+                    </p>
+                  </div>
+                )}
+
+              {/* Late Warning (Check-in) */}
+              {result.valid &&
+                result.action === "check-in" &&
+                !result.graceApplied &&
+                result.minutesLate > 15 && (
+                  <div className="p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Clock className="text-orange-600" size={20} />
+                      <span className="font-semibold text-orange-800">
+                        Late Arrival
+                      </span>
+                    </div>
+                    <p className="text-sm text-orange-700 mt-1">
+                      You're {result.minutesLate} min late.{" "}
+                      <span className="font-semibold">
+                        {result.minutesLate - 15} min lost.
+                      </span>
+                    </p>
+                  </div>
+                )}
+
+              {/* Fine Alert (Check-out) */}
+              {result.valid &&
+                result.action === "check-out" &&
+                result.fine > 0 && (
+                  <div className="mt-4 p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg">
+                    <div className="font-semibold text-orange-800 text-lg mb-2">
+                      ⚠️ Overstay Fine
+                    </div>
+                    <div className="flex items-center gap-2 text-3xl font-bold text-orange-600 mb-2">
+                      <IndianRupee size={28} />
+                      {result.fine}
+                    </div>
+                    <p className="text-sm text-orange-700 mb-1">
                       You overstayed by {result.hoursLate} hour
                       {result.hoursLate > 1 ? "s" : ""}
                     </p>
-                    <p className="text-xs text-red-600 mt-2">
-                      Please pay the fine at the exit counter
-                    </p>
+                    
+                    {!finePaid ? (
+                      <>
+                        <p className="text-xs text-orange-600 mb-3">
+                          Please pay the fine to complete check-out
+                        </p>
+                        <button
+                          onClick={handlePayFine}
+                          disabled={payingFine}
+                          className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                        >
+                          {payingFine ? (
+                            <>
+                              <Loader2 className="animate-spin" size={20} />
+                              Processing Payment...
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard size={20} />
+                              Pay Fine Now
+                            </>
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-green-700 font-semibold">
+                          <CheckCircle size={20} />
+                          Payment Successful!
+                        </div>
+                        <p className="text-xs text-green-600 mt-1">
+                          You may now exit. Thank you!
+                        </p>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )}
 
-            {/* Success (Check-out, no fine) */}
-            {result.valid &&
-              result.action === "check-out" &&
-              result.fine === 0 && (
-                <div className="mb-6 p-4 rounded-lg border-2 bg-green-50 border-green-300">
-                  <div className="text-center">
-                    <CheckCircle
-                      className="text-green-600 mx-auto mb-2"
-                      size={40}
-                    />
-                    <p className="font-bold text-green-900">Thank you!</p>
-                    <p className="text-sm text-green-700">
+              {/* Success (Check-out, no fine) */}
+              {result.valid &&
+                result.action === "check-out" &&
+                result.fine === 0 && (
+                  <div className="p-4 bg-green-50 border-l-4 border-green-500 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="text-green-600" size={20} />
+                      <span className="font-semibold text-green-800">
+                        Thank you!
+                      </span>
+                    </div>
+                    <p className="text-sm text-green-700 mt-1">
                       No overstay charges
                     </p>
                   </div>
+                )}
+
+              {/* Booking Details */}
+              {result.booking && (
+                <div className="p-4 bg-gray-50 rounded-lg text-sm space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-gray-500">Location:</span>
+                      <p className="font-medium text-gray-800">
+                        {result.qrData?.location ||
+                          result.booking.parkingSpot?.parkingLocation?.name ||
+                          result.booking.location?.name ||
+                          "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Spot:</span>
+                      <p className="font-medium text-gray-800">
+                        {result.qrData?.spot ||
+                          result.booking.parkingSpot?.spotNumber ||
+                          "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Vehicle:</span>
+                      <p className="font-medium text-gray-800">
+                        {result.qrData?.type ||
+                          result.booking.type ||
+                          "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Status:</span>
+                      <p className="font-medium text-gray-800">
+                        {result.booking.status}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Time:</span>
+                    <p className="font-medium text-gray-800">
+                      {new Date(result.booking.startTime).toLocaleTimeString(
+                        "en-US",
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        },
+                      )}{" "}
+                      -{" "}
+                      {new Date(result.booking.endTime).toLocaleTimeString(
+                        "en-US",
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        },
+                      )}
+                    </p>
+                  </div>
                 </div>
               )}
 
-            {/* Booking Details */}
-            {result.booking && (
-              <div className="bg-background rounded-lg p-6 mb-6 space-y-3 text-left">
-                <div className="flex justify-between">
-                  <span className="text-muted">Location:</span>
-                  <span className="font-bold text-text">
-                    {result.qrData?.location ||
-                      result.booking.parkingSpot?.parkingLocation?.name ||
-                      result.booking.location?.name ||
-                      "N/A"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted">Spot:</span>
-                  <span className="font-bold text-text">
-                    {result.qrData?.spot ||
-                      result.booking.parkingSpot?.spotNumber ||
-                      "N/A"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted">Vehicle:</span>
-                  <span className="font-bold text-text capitalize">
-                    {result.qrData?.type || result.booking.type || "N/A"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted">Time:</span>
-                  <span className="font-bold text-text text-sm">
-                    {new Date(result.booking.startTime).toLocaleTimeString(
-                      "en-US",
-                      {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      },
-                    )}{" "}
-                    -{" "}
-                    {new Date(result.booking.endTime).toLocaleTimeString(
-                      "en-US",
-                      {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      },
-                    )}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted">Status:</span>
-                  <span
-                    className={`font-bold capitalize ${
-                      result.booking.status === "active"
-                        ? "text-success"
-                        : result.booking.status === "completed"
-                          ? "text-blue-600"
-                          : "text-error"
-                    }`}
-                  >
-                    {result.booking.status}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={resetScanner}
-              className="bg-gradient-to-r from-primary to-accent text-white px-8 py-3 rounded-lg font-bold hover:shadow-lg transition-all"
-            >
-              Scan Another
-            </button>
-          </div>
-        )}
+              <button
+                onClick={resetScanner}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+              >
+                Scan Another
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
