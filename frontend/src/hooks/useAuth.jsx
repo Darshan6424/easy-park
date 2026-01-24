@@ -1,4 +1,3 @@
-// frontend/src/hooks/useAuth.js
 import { useState, useEffect, createContext, useContext } from "react";
 import APP_CONFIG from "../config/config";
 import {
@@ -15,118 +14,91 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initializeAuth = () => {
-      try {
-        const userData = getUser();
-        setUserState(userData);
-      } catch (error) {
-        console.error("Error initializing auth:", error);
-        setUserState(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
+    try {
+      const userData = getUser();
+      setUserState(userData);
+    } catch (err) {
+      console.error("Auth init error:", err);
+      setUserState(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  // ✅ LOGIN
   const login = async (email, password) => {
     try {
-      const response = await fetch(`${APP_CONFIG.api.baseURL}/auth/sign-in`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-        credentials: "include",
-      });
+      const response = await fetch(
+        `${APP_CONFIG.api.baseURL}/api/sign-in`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+          credentials: "include",
+        }
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
-        return {
-          success: false,
-          error: data.message || "Login failed",
-        };
+        return { success: false, error: data.message || "Login failed" };
       }
 
-      if (data.user) {
-        setUser(data.user);
-        setUserState(data.user);
+      setUser(data.user);
+      setUserState(data.user);
 
-        return {
-          success: true,
-          user: data.user,
-        };
-      }
-
-      return {
-        success: false,
-        error: "Invalid response from server",
-      };
-    } catch (error) {
-      console.error("Login error:", error);
-      return {
-        success: false,
-        error: error.message || "Network error occurred",
-      };
+      return { success: true, user: data.user };
+    } catch (err) {
+      console.error("Login error:", err);
+      return { success: false, error: "Network error" };
     }
   };
 
+  // ✅ REGISTER
+  const register = async (userData) => {
+    try {
+      const response = await fetch(
+        `${APP_CONFIG.api.baseURL}/api/sign-up`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(userData),
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.message || "Register failed" };
+      }
+
+      setUser(data.user);
+      setUserState(data.user);
+
+      return { success: true, user: data.user };
+    } catch (err) {
+      console.error("Register error:", err);
+      return { success: false, error: "Network error" };
+    }
+  };
+
+  // ✅ LOGOUT (only clears frontend unless backend route exists)
   const logout = async () => {
     try {
       await fetch(`${APP_CONFIG.api.baseURL}/api/logout`, {
         method: "POST",
         credentials: "include",
       });
-    } catch (error) {
-      console.error("Logout error:", error);
+    } catch (err) {
+      console.error("Logout error:", err);
     } finally {
       logoutUtil();
       setUserState(null);
-    }
-  };
-
-  const register = async (userData) => {
-    try {
-      const response = await fetch(`${APP_CONFIG.api.baseURL}/api/auth/sign-up`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(userData),
-        credentials: "include",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: data.message || "Registration failed",
-        };
-      }
-
-      if (data.user) {
-        setUser(data.user);
-        setUserState(data.user);
-
-        return {
-          success: true,
-          user: data.user,
-        };
-      }
-
-      return {
-        success: false,
-        error: "Invalid response from server",
-      };
-    } catch (error) {
-      console.error("Registration error:", error);
-      return {
-        success: false,
-        error: error.message || "Network error occurred",
-      };
     }
   };
 
@@ -135,30 +107,30 @@ export const AuthProvider = ({ children }) => {
     setUserState(userData);
   };
 
-  const isAuthenticated = () => {
-    return isLoggedIn();
-  };
+  const isAuthenticated = () => isLoggedIn();
 
-  const value = {
-    user,
-    login,
-    logout,
-    register,
-    updateUser,
-    isAuthenticated,
-    loading,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        register,
+        logout,
+        updateUser,
+        isAuthenticated,
+        loading,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error("useAuth must be used within AuthProvider");
   }
-
   return context;
 };
 
