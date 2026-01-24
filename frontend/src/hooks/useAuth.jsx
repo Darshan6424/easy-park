@@ -1,5 +1,6 @@
 // frontend/src/hooks/useAuth.js
 import { useState, useEffect, createContext, useContext } from "react";
+import APP_CONFIG from "../config/config";
 import {
   getUser,
   setUser,
@@ -31,7 +32,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch("http://localhost:8000/api/auth/sign-in", {
+      const response = await fetch(`${APP_CONFIG.api.baseURL}/auth/sign-in`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -74,7 +75,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch("http://localhost:8000/api/logout", {
+      await fetch(`${APP_CONFIG.api.baseURL}/api/logout`, {
         method: "POST",
         credentials: "include",
       });
@@ -88,7 +89,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await fetch("http://localhost:8000/api/auth/sign-up", {
+      const response = await fetch(`${APP_CONFIG.api.baseURL}/api/auth/sign-up`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
