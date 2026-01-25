@@ -3,69 +3,96 @@ import ParkingSpot from "../models/parkingSpot.js";
 
 /**
  * Check and update expired bookings
- * Updates booking status to 'expired' and frees up parking spots
+ * Handles both booking expiry and grace period expiry
  */
 export async function checkAndUpdateExpiredBookings() {
     try {
         const now = new Date();
+        const GRACE_PERIOD_MINUTES = 15;
 
-        // Find all active bookings that have passed their end time
+        // 1. Find active bookings that have passed their end time
         const expiredBookings = await Booking.find({
             status: "active",
             endTime: { $lt: now },
+            isCheckedOut: false,
         });
 
-        // Find all pending-arrival bookings that have passed their grace period
-        const graceExpiredBookings = await Booking.find({
-            status: "pending-arrival",
-            graceExpiryTime: { $lt: now },
-        });
+        console.log(`Found ${expiredBookings.length} expired bookings`);
 
-        console.log(
-            `Found ${expiredBookings.length} expired bookings and ${graceExpiredBookings.length} grace-expired bookings to update`,
-        );
-
-        // Update each expired booking
-        const updatePromises = expiredBookings.map(async (booking) => {
-            // Update booking status to expired
+        // Update expired bookings - DO NOT free spots (they stay occupied until checkout)
+        const expiredPromises = expiredBookings.map(async (booking) => {
             booking.status = "expired";
+
+            if (booking.isCheckedIn) {
+                // Calculate fine for overstay (1.5x hourly rate)
+                const minutesLate = Math.floor(
+                    (now - booking.endTime) / (1000 * 60),
+                );
+                const hoursLate = Math.ceil(minutesLate / 60);
+                const hourlyRate = booking.hourlyRate || 50;
+                const fine = Math.ceil(hoursLate * hourlyRate * 1.5);
+
+                booking.fine = fine;
+                booking.finePaid = false;
+                // Keep spot OCCUPIED until payment/checkout
+            } else {
+                // No-show: never checked in, treat as invalid
+                booking.status = "invalid";
+                booking.fine = 0;
+
+                // Free the spot for no-shows
+                await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
+                    isOccupied: false,
+                });
+            }
+
             await booking.save();
-
-            // Free up the parking spot
-            await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
-                isOccupied: false,
-            });
-
             return booking._id;
         });
 
-        // Update each grace-expired booking
-        const graceUpdatePromises = graceExpiredBookings.map(
-            async (booking) => {
-                // Mark as invalid and free the spot
+        // 2. Find pending bookings and check if grace period expired
+        const pendingBookings = await Booking.find({
+            status: "pending",
+        });
+
+        console.log(`Found ${pendingBookings.length} pending bookings to check`);
+
+        const graceExpiredPromises = pendingBookings
+            .filter((booking) => {
+                const startTime = new Date(booking.startTime);
+                const lateGraceEnd = new Date(
+                    startTime.getTime() + GRACE_PERIOD_MINUTES * 60 * 1000,
+                );
+                return now > lateGraceEnd;
+            })
+            .map(async (booking) => {
+                // Grace period expired, mark as invalid and free spot
                 booking.status = "invalid";
                 await booking.save();
 
-                // Free up the parking spot
                 await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
                     isOccupied: false,
                 });
 
                 return booking._id;
-            },
-        );
+            });
 
-        const updatedIds = await Promise.all([
-            ...updatePromises,
-            ...graceUpdatePromises,
+        const [expiredIds, graceExpiredIds] = await Promise.all([
+            Promise.all(expiredPromises),
+            Promise.all(graceExpiredPromises),
         ]);
+
+        console.log(
+            `Processed ${expiredIds.length} expired bookings and ${graceExpiredIds.length} grace-expired bookings`,
+        );
 
         return {
             success: true,
-            count: updatedIds.length,
-            expiredCount: expiredBookings.length,
-            graceExpiredCount: graceExpiredBookings.length,
-            bookingIds: updatedIds,
+            expiredCount: expiredIds.length,
+            graceExpiredCount: graceExpiredIds.length,
+            totalCount: expiredIds.length + graceExpiredIds.length,
+            expiredBookingIds: expiredIds,
+            graceExpiredBookingIds: graceExpiredIds,
         };
     } catch (error) {
         console.error("Error checking expired bookings:", error);
@@ -74,7 +101,7 @@ export async function checkAndUpdateExpiredBookings() {
 }
 
 /**
- * Check if a specific booking is expired
+ * Check if a specific booking is expired or grace-expired
  * @param {string} bookingId - The booking ID to check
  */
 export async function checkSingleBookingExpiry(bookingId) {
@@ -86,28 +113,65 @@ export async function checkSingleBookingExpiry(bookingId) {
         }
 
         const now = new Date();
-        const isExpired = booking.status === "active" && booking.endTime < now;
+        const GRACE_PERIOD_MINUTES = 15;
+        let statusChanged = false;
 
-        if (isExpired) {
-            // Update booking to expired
+        // Check if active booking is expired
+        if (
+            booking.status === "active" &&
+            booking.endTime < now &&
+            !booking.isCheckedOut
+        ) {
             booking.status = "expired";
+
+            if (booking.isCheckedIn) {
+                // Calculate fine for overstay
+                const minutesLate = Math.floor(
+                    (now - booking.endTime) / (1000 * 60),
+                );
+                const hoursLate = Math.ceil(minutesLate / 60);
+                const hourlyRate = booking.hourlyRate || 50;
+                const fine = Math.ceil(hoursLate * hourlyRate * 1.5);
+
+                booking.fine = fine;
+                booking.finePaid = false;
+                // Keep spot occupied
+            } else {
+                // No-show
+                booking.status = "invalid";
+                booking.fine = 0;
+
+                await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
+                    isOccupied: false,
+                });
+            }
+
             await booking.save();
+            statusChanged = true;
+        }
 
-            // Free up the parking spot
-            await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
-                isOccupied: false,
-            });
+        // Check if pending booking is past grace period
+        if (booking.status === "pending") {
+            const startTime = new Date(booking.startTime);
+            const lateGraceEnd = new Date(
+                startTime.getTime() + GRACE_PERIOD_MINUTES * 60 * 1000,
+            );
 
-            return {
-                success: true,
-                wasExpired: true,
-                booking,
-            };
+            if (now > lateGraceEnd) {
+                booking.status = "invalid";
+                await booking.save();
+
+                await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
+                    isOccupied: false,
+                });
+
+                statusChanged = true;
+            }
         }
 
         return {
             success: true,
-            wasExpired: false,
+            statusChanged,
             booking,
         };
     } catch (error) {

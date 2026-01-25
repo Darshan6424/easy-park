@@ -14,6 +14,7 @@ import {
   CheckCircle,
   AlertCircle,
   Timer,
+  CreditCard,
 } from "lucide-react";
 import generateQr from "../lib/qrCodeGenerator";
 
@@ -26,6 +27,8 @@ export default function BookingTicket() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [qrCode, setQrCode] = useState(null);
+  const [payingFine, setPayingFine] = useState(false);
+  const [fineError, setFineError] = useState("");
 
   useEffect(() => {
     fetchBooking();
@@ -143,8 +146,8 @@ export default function BookingTicket() {
   const getTimeRemaining = () => {
     if (!booking) return null;
 
-    // For pending-arrival, show time until grace period expires
-    if (booking.status === "pending-arrival") {
+    // For pending, show time until grace period expires
+    if (booking.status === "pending") {
       const now = new Date();
       const graceExpiry = new Date(booking.graceExpiryTime);
       const diff = graceExpiry - now;
@@ -191,6 +194,55 @@ export default function BookingTicket() {
     window.print();
   };
 
+  const handlePayFine = async () => {
+    if (!booking) return;
+
+    setPayingFine(true);
+    setFineError("");
+
+    try {
+      const locationId =
+        booking?.location?._id ||
+        booking?.location ||
+        booking?.parkingSpot?.parkingLocation?._id;
+
+      if (!locationId) {
+        throw new Error("Location ID not found");
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/booking/${bookingId}/pay-fine`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ locationId }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok) {
+        // Update booking state to reflect fine payment
+        setBooking({
+          ...booking,
+          finePaid: true,
+          fine: 0,
+        });
+        alert("Fine paid successfully!");
+      } else {
+        setFineError(result.message || "Failed to pay fine");
+        alert(result.message || "Failed to pay fine");
+      }
+    } catch (err) {
+      console.error("Pay fine error:", err);
+      setFineError("Network error. Please try again.");
+      alert("Network error. Please try again.");
+    } finally {
+      setPayingFine(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -226,7 +278,7 @@ export default function BookingTicket() {
 
   const timeRemaining = getTimeRemaining();
   const isActive = booking.status?.toLowerCase() === "active";
-  const isPendingArrival = booking.status?.toLowerCase() === "pending-arrival";
+  const isPending = booking.status?.toLowerCase() === "pending";
   const isInvalid = booking.status?.toLowerCase() === "invalid";
   const hasExpired = booking.status?.toLowerCase() === "expired";
   const isCheckedOut = booking.isCheckedOut;
@@ -276,7 +328,7 @@ export default function BookingTicket() {
                   </div>
                 </div>
 
-                {(isActive || isPendingArrival) && timeRemaining && (
+                {(isActive || isPending) && timeRemaining && (
                   <div className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg px-3 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <Timer size={14} />
@@ -290,7 +342,7 @@ export default function BookingTicket() {
               <div className="flex items-center gap-2 mt-2">
                 <div
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs ${
-                    isPendingArrival
+                    isPending
                       ? "bg-warning/20 border border-warning/30 text-white"
                       : isActive
                         ? "bg-success/20 border border-success/30 text-white"
@@ -299,20 +351,18 @@ export default function BookingTicket() {
                           : "bg-white/20 border border-white/30 text-white"
                   }`}
                 >
-                  {isPendingArrival ? (
+                  {isPending ? (
                     <Timer size={12} strokeWidth={2.5} />
                   ) : (
                     <CheckCircle size={12} strokeWidth={2.5} />
                   )}
                   <span className="capitalize">
-                    {isPendingArrival
-                      ? "Pending Arrival"
-                      : booking.status?.replace("-", " ")}
+                    {booking.status?.replace("-", " ")}
                   </span>
                 </div>
               </div>
 
-              {isPendingArrival && (
+              {isPending && (
                 <div className="mt-3 bg-white/20 border border-white/40 rounded-lg px-3 py-2 text-xs text-white">
                   <strong>Check in required!</strong> Scan this QR at the
                   parking location within {timeRemaining || "15 minutes"} to
@@ -524,6 +574,25 @@ export default function BookingTicket() {
 
               {/* Action Buttons */}
               <div className="flex gap-2 print:hidden">
+                {hasExpired && booking.fine > 0 && !booking.finePaid && (
+                  <button
+                    onClick={handlePayFine}
+                    disabled={payingFine}
+                    className="px-4 py-1.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:shadow-lg transition-all font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {payingFine ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Paying...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard size={14} strokeWidth={2.5} />
+                        Pay Fine ₹{booking.fine}
+                      </>
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={handleDownload}
                   className="px-3 py-1.5 bg-background border border-border text-text rounded-lg hover:border-primary transition-all font-medium text-xs flex items-center gap-1.5"

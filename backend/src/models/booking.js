@@ -33,13 +33,18 @@ const bookingSchema = mongoose.Schema(
         status: {
             type: String,
             required: true,
-            enum: ["pending-arrival", "active", "expired", "completed", "cancelled", "invalid"],
-            default: "pending-arrival",
+            enum: ["pending", "active", "expired", "completed", "invalid"],
+            default: "pending",
         },
         fine: {
             type: Number,
             required: false,
             default: 0,
+        },
+        finePaid: {
+            type: Boolean,
+            required: false,
+            default: false,
         },
         // Entry tracking
         actualEntryTime: {
@@ -80,14 +85,13 @@ const bookingSchema = mongoose.Schema(
             required: false,
             default: false,
         },
-        // Grace period tracking
-        graceExpiryTime: {
-            type: Date,
+        graceType: {
+            type: String, // 'early' or 'late'
             required: false,
             default: null,
         },
         arrivalDelay: {
-            type: Number, // in minutes
+            type: Number, // in minutes (negative for early, positive for late)
             required: false,
             default: 0,
         },

@@ -99,7 +99,7 @@ export default function MyBookings() {
 
   const getStatusIcon = (status) => {
     switch (status?.toLowerCase()) {
-      case "pending-arrival":
+      case "pending":
         return (
           <Timer className="text-warning" size={20} strokeWidth={2.5} />
         );
@@ -126,7 +126,7 @@ export default function MyBookings() {
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
-      case "pending-arrival":
+      case "pending":
         return "bg-warning/10 text-warning border-warning";
       case "active":
         return "bg-success/10 text-success border-success";
@@ -335,7 +335,7 @@ const calculateDuration = (startTime, endTime, booking) => {
 
         {/* Filter Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
-          {["all", "active", "expired", "completed"].map((status) => {
+          {["all", "pending", "active", "expired", "completed"].map((status) => {
             const count = getFilterCount(status);
             return (
               <button
@@ -399,8 +399,14 @@ const calculateDuration = (startTime, endTime, booking) => {
               const gracePeriodStatus = getGracePeriodStatus(booking);
 
               const canViewTicket =
-                !booking.isCheckedOut &&
-                (statusLower === "active" || statusLower === "expired");
+                statusLower === "pending" ||
+                statusLower === "active" ||
+                statusLower === "expired";
+
+              const canPayFine =
+                statusLower === "expired" &&
+                booking.fine > 0 &&
+                !booking.finePaid;
 
               return (
                 <div
@@ -587,13 +593,15 @@ const calculateDuration = (startTime, endTime, booking) => {
                             className="flex-1 lg:flex-none bg-gradient-to-r from-primary to-accent text-white px-5 py-2.5 rounded-lg hover:shadow-lg transition-all font-bold text-sm flex items-center justify-center gap-2"
                           >
                             <Eye size={16} />
-                            {statusLower === "expired"
-                              ? "View / Exit"
+                            {statusLower === "pending"
+                              ? "View Ticket"
+                              : statusLower === "expired"
+                              ? "View / Pay Fine"
                               : "View Ticket"}
                           </button>
                         )}
 
-                        {statusLower === "active" && (
+                        {statusLower === "pending" && (
                           <button
                             onClick={() => handleDeleteBooking(booking._id)}
                             disabled={deletingId === booking._id}
@@ -610,7 +618,7 @@ const calculateDuration = (startTime, endTime, booking) => {
 
                         {statusLower === "completed" && (
                           <button
-                            onClick={() => navigate("/my-bookings")}
+                            onClick={() => navigate(`/booking/${booking._id}`)}
                             className="flex-1 lg:flex-none bg-background border-2 border-border text-text px-5 py-2.5 rounded-lg hover:border-primary transition-all font-medium text-sm flex items-center justify-center gap-2"
                           >
                             <Eye size={16} />

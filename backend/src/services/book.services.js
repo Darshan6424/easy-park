@@ -36,12 +36,6 @@ export async function book(bookingDetails) {
     const hourlyRate = spot.parkingLocation?.cost || 0;
     const totalCost = hourlyRate * duration;
 
-    // Grace period: 15 minutes from start time
-    const GRACE_PERIOD_MINUTES = 15;
-    const graceExpiryTime = new Date(
-        startTime.getTime() + GRACE_PERIOD_MINUTES * 60 * 1000,
-    );
-
     // Create booking with location reference from the parking spot
     const newBooking = await Booking.create({
         user,
@@ -50,11 +44,10 @@ export async function book(bookingDetails) {
         type,
         startTime,
         endTime,
-        status: "pending-arrival",
+        status: "pending",
         hourlyRate,
         durationHours: duration,
         totalCost,
-        graceExpiryTime,
     });
 
     // Mark spot as occupied
@@ -88,13 +81,23 @@ export async function deleteBookingService(bookingId, userId) {
         throw new Error("You are not allowed to delete this booking");
     }
 
+    // Only allow cancellation of pending bookings (not yet checked in)
+    if (bookingDetails.status !== "pending") {
+        throw new Error(
+            `Cannot cancel booking with status: ${bookingDetails.status}. Only pending bookings can be cancelled.`,
+        );
+    }
+
+    // Mark as invalid instead of deleting
+    bookingDetails.status = "invalid";
+    await bookingDetails.save();
+
     // Free up the parking spot
     await ParkingSpot.findByIdAndUpdate(bookingDetails.parkingSpot, {
         isOccupied: false,
     });
 
-    const deletedBooking = await Booking.findByIdAndDelete(bookingId);
-    return deletedBooking;
+    return bookingDetails;
 }
 
 export async function editBookingService(

@@ -2,7 +2,7 @@ import Booking from "../models/booking.js";
 import ParkingSpot from "../models/parkingSpot.js";
 import mongoose from "mongoose";
 
-const FINE_PER_HOUR = 100; // रु 100 per hour
+const FINE_MULTIPLIER = 1.5; // Fine is 1.5x the hourly rate per hour
 
 function getLocationFromBooking(booking) {
     return (
@@ -56,68 +56,104 @@ export async function checkInBookingService(bookingId, options = {}) {
         throw new Error("Already checked in");
     }
 
-    const now = new Date();
-    const startTime = new Date(booking.startTime);
-    const graceExpiryTime = new Date(booking.graceExpiryTime);
-    const GRACE_PERIOD_MINUTES = 15;
-
-    // Check if booking is still in grace period or already invalid
     if (booking.status === "invalid") {
         throw new Error(
-            "Booking grace period expired. This booking is no longer valid.",
+            "Booking is invalid. Grace period expired or booking was cancelled.",
         );
     }
 
-    // Check if beyond grace period without being marked invalid
-    if (now > graceExpiryTime && booking.status === "pending-arrival") {
+    if (booking.status !== "pending") {
+        throw new Error(
+            `Cannot check in. Booking status is ${booking.status}.`,
+        );
+    }
+
+    const now = new Date();
+    const startTime = new Date(booking.startTime);
+    const endTime = new Date(booking.endTime);
+    const GRACE_PERIOD_MINUTES = 15;
+
+    // Calculate grace window
+    const earlyGraceStart = new Date(
+        startTime.getTime() - GRACE_PERIOD_MINUTES * 60 * 1000,
+    );
+    const lateGraceEnd = new Date(
+        startTime.getTime() + GRACE_PERIOD_MINUTES * 60 * 1000,
+    );
+
+    // Check if scan is too early (before early grace window)
+    if (now < earlyGraceStart) {
+        const minutesTooEarly = Math.ceil(
+            (earlyGraceStart - now) / (1000 * 60),
+        );
+        throw new Error(
+            `Too early to check in. Please arrive within 15 minutes of your booking start time. Try again in ${minutesTooEarly} minute${minutesTooEarly > 1 ? "s" : ""}.`,
+        );
+    }
+
+    // Check if scan is too late (after late grace window)
+    if (now > lateGraceEnd) {
+        // Mark as invalid and free the spot
         booking.status = "invalid";
         await booking.save();
+
+        await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
+            isOccupied: false,
+        });
+
         throw new Error(
-            "Grace period expired. You must arrive within 15 minutes of booking start time.",
+            "Grace period expired. You must check in within 15 minutes of booking start time. Your spot has been released.",
         );
     }
 
-    // Calculate arrival time relative to booking start
-    const arrivalDelay = Math.floor((now - startTime) / (1000 * 60)); // minutes
+    // Calculate arrival time relative to booking start (negative = early, positive = late)
+    const arrivalDelay = Math.floor((now - startTime) / (1000 * 60)); // in minutes
 
-    let newEndTime = new Date(booking.endTime);
+    let newEndTime = new Date(endTime);
     let message = "Checked in successfully";
     let graceApplied = false;
+    let graceType = null;
 
-    if (booking.status === "pending-arrival" && arrivalDelay >= 0) {
-        // User arrived after start time but within grace period
-        if (arrivalDelay > 0 && arrivalDelay <= GRACE_PERIOD_MINUTES) {
-            // Extend end time by the delay to preserve full duration
-            const originalDuration = new Date(booking.endTime) - startTime;
-            newEndTime = new Date(now.getTime() + originalDuration);
-            graceApplied = true;
-            message = `Checked in successfully. Arrived ${arrivalDelay} min late. End time extended to ${newEndTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} to preserve full duration.`;
-            booking.arrivalDelay = arrivalDelay;
-        } else if (arrivalDelay === 0) {
-            message = "Checked in on time. Enjoy your parking!";
-        }
-
-        // Activate the booking
-        booking.status = "active";
-        booking.actualEntryTime = now;
-        booking.isCheckedIn = true;
-        booking.endTime = newEndTime;
-        booking.graceApplied = graceApplied;
-
-        await booking.save();
-
-        return {
-            booking,
-            graceApplied,
-            arrivalDelay: arrivalDelay > 0 ? arrivalDelay : 0,
-            message,
-        };
-    } else if (booking.status === "active") {
-        // Booking already active (shouldn't happen, but handle it)
-        throw new Error("Booking is already active");
-    } else {
-        throw new Error("Cannot check in. Invalid booking status.");
+    // Early arrival (before start time)
+    if (arrivalDelay < 0) {
+        const earlyMinutes = Math.abs(arrivalDelay);
+        // Reduce end time to preserve exact duration
+        newEndTime = new Date(endTime.getTime() - earlyMinutes * 60 * 1000);
+        graceApplied = true;
+        graceType = "early";
+        message = `Checked in early (${earlyMinutes} min before start). End time adjusted to ${newEndTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} to maintain booked duration.`;
     }
+    // Late arrival (after start time but within grace)
+    else if (arrivalDelay > 0 && arrivalDelay <= GRACE_PERIOD_MINUTES) {
+        // Extend end time to preserve exact duration
+        newEndTime = new Date(endTime.getTime() + arrivalDelay * 60 * 1000);
+        graceApplied = true;
+        graceType = "late";
+        message = `Checked in late (${arrivalDelay} min after start). End time extended to ${newEndTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} to maintain booked duration.`;
+    }
+    // On-time arrival
+    else {
+        message = "Checked in on time. Enjoy your parking!";
+    }
+
+    // Activate the booking
+    booking.status = "active";
+    booking.actualEntryTime = now;
+    booking.isCheckedIn = true;
+    booking.endTime = newEndTime;
+    booking.graceApplied = graceApplied;
+    booking.graceType = graceType;
+    booking.arrivalDelay = arrivalDelay;
+
+    await booking.save();
+
+    return {
+        booking,
+        graceApplied,
+        graceType,
+        arrivalDelay,
+        message,
+    };
 }
 
 // Check-out service - when user leaves and scans QR
@@ -149,6 +185,7 @@ export async function checkOutBookingService(bookingId, options = {}) {
         throw new Error("Already checked out");
     }
 
+    // If already checked out and this is just fine payment confirmation
     if (booking.isCheckedOut && markFinePaid) {
         return {
             booking,
@@ -169,26 +206,32 @@ export async function checkOutBookingService(bookingId, options = {}) {
     let requiresFinePayment = false;
     let message = "Checked out successfully. Thank you!";
 
-    // Calculate fine if late
+    // Calculate fine if overstayed (1.5x hourly rate per hour)
     if (minutesLate > 0) {
-        fine = hoursLate * FINE_PER_HOUR;
+        const hourlyRate = booking.hourlyRate || 50; // fallback rate
+        fine = Math.ceil(hoursLate * hourlyRate * FINE_MULTIPLIER);
         booking.fine = fine;
-        booking.status = "expired"; // Stay expired until payment is collected
+        booking.status = "expired"; // Mark as expired when overstay detected
         requiresFinePayment = !markFinePaid;
-        message = `Overstay fine: रु ${fine} (${hoursLate} hour${hoursLate > 1 ? "s" : ""} late)`;
+        message = `Overstay fine: रु ${fine} (${hoursLate} hour${hoursLate > 1 ? "s" : ""} late at ${hourlyRate * FINE_MULTIPLIER}/hr)`;
 
         if (markFinePaid) {
+            // Fine paid, complete checkout
             booking.finePaid = true;
             booking.actualExitTime = now;
             booking.isCheckedOut = true;
             booking.status = "completed";
             requiresFinePayment = false;
+            message = `Fine of रु ${fine} paid. Checkout completed.`;
         } else {
+            // Fine not paid yet, require payment
             booking.finePaid = false;
             booking.actualExitTime = null;
             booking.isCheckedOut = false;
+            // Keep spot occupied until payment
         }
     } else {
+        // No overstay, normal checkout
         booking.fine = 0;
         booking.finePaid = false;
         booking.status = "completed";
@@ -196,7 +239,7 @@ export async function checkOutBookingService(bookingId, options = {}) {
         booking.isCheckedOut = true;
     }
 
-    // Free up the parking spot only when checkout is finalized (no fine or fine paid)
+    // Free parking spot ONLY when checkout is finalized (no fine or fine paid)
     if (booking.parkingSpot && !requiresFinePayment) {
         await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
             isOccupied: false,
@@ -238,7 +281,6 @@ export async function getBookingStatusService(bookingId, options = {}) {
         })
         .populate({ path: "location", populate: { path: "owner" } })
         .populate("user", "name email phone");
-    console.log("Got to get bookingStatusService", booking);
 
     if (!booking) {
         throw new Error("Booking not found");
@@ -246,16 +288,50 @@ export async function getBookingStatusService(bookingId, options = {}) {
 
     assertLocationScope(booking, locationId, user);
 
-    // Check if booking is expired (past endTime but not checked out)
     const now = new Date();
+    const startTime = new Date(booking.startTime);
     const endTime = new Date(booking.endTime);
+    const GRACE_PERIOD_MINUTES = 15;
 
-    const minutesLate = Math.floor((now - endTime) / (1000 * 60));
-    const hoursLate = minutesLate > 0 ? Math.ceil(minutesLate / 60) : 0;
+    // Calculate grace windows
+    const earlyGraceStart = new Date(
+        startTime.getTime() - GRACE_PERIOD_MINUTES * 60 * 1000,
+    );
+    const lateGraceEnd = new Date(
+        startTime.getTime() + GRACE_PERIOD_MINUTES * 60 * 1000,
+    );
 
-    if (now > endTime && !booking.isCheckedOut) {
+    // Auto-update status if needed
+    // 1. Check if pending booking is past late grace period
+    if (booking.status === "pending" && now > lateGraceEnd) {
+        booking.status = "invalid";
+        await booking.save();
+
+        // Free the spot
+        await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
+            isOccupied: false,
+        });
+    }
+
+    // 2. Check if active booking is past end time
+    if (
+        booking.status === "active" &&
+        now > endTime &&
+        !booking.isCheckedOut
+    ) {
         booking.status = "expired";
         await booking.save();
+    }
+
+    // Calculate if late and fine amount
+    const minutesLate = Math.floor((now - endTime) / (1000 * 60));
+    const hoursLate = minutesLate > 0 ? Math.ceil(minutesLate / 60) : 0;
+    
+    // Calculate current fine (may differ from stored fine if time has passed)
+    let currentFine = 0;
+    if (minutesLate > 0 && booking.isCheckedIn) {
+        const hourlyRate = booking.hourlyRate || 50;
+        currentFine = Math.ceil(hoursLate * hourlyRate * 1.5);
     }
 
     const requiresFinePayment =
@@ -264,50 +340,81 @@ export async function getBookingStatusService(bookingId, options = {}) {
         !booking.isCheckedOut &&
         !booking.finePaid;
 
+    // Determine what actions are available
+    const canCheckIn =
+        booking.status === "pending" &&
+        !booking.isCheckedIn &&
+        now >= earlyGraceStart &&
+        now <= lateGraceEnd;
+
+    const canCheckOut =
+        (booking.status === "active" || booking.status === "expired") &&
+        booking.isCheckedIn &&
+        !booking.isCheckedOut;
+
+    // Determine if QR should be shown (pending, active, and expired)
+    // Pending: user shows ticket to guard for check-in
+    // Active: for checkout
+    // Expired: for checkout with fine payment
+    const showQR = 
+        booking.status === "pending" || 
+        booking.status === "active" || 
+        booking.status === "expired";
+
     return {
         booking,
-        isValid: booking.status === "active",
-        canCheckIn: !booking.isCheckedIn && booking.status === "active",
-        canCheckOut: booking.isCheckedIn && !booking.isCheckedOut,
+        isValid: showQR,
+        canCheckIn,
+        canCheckOut,
+        showQR,
         requiresFinePayment,
         minutesLate: minutesLate > 0 ? minutesLate : 0,
         hoursLate,
+        currentFine, // Always include current fine (0 if not applicable)
+        graceWindowStart: earlyGraceStart,
+        graceWindowEnd: lateGraceEnd,
+        isWithinGracePeriod:
+            booking.status === "pending" &&
+            now >= earlyGraceStart &&
+            now <= lateGraceEnd,
     };
 }
 
-// Auto-expire bookings (for cron job)
+// Auto-expire bookings (for cron job) - DO NOT free spots for expired, only for invalid
 export async function autoExpireBookingsService() {
     const now = new Date();
+    const GRACE_PERIOD_MINUTES = 15;
 
-    // Find active bookings that are past endTime and not checked out
+    // Find active bookings that are past endTime
     const expiredBookings = await Booking.find({
         endTime: { $lt: now },
         status: "active",
         isCheckedOut: false,
     }).populate("parkingSpot");
 
-    const results = [];
+    const expiredResults = [];
 
     for (const booking of expiredBookings) {
         booking.status = "expired";
 
         if (booking.isCheckedIn) {
+            // Booking was checked in but overstayed
             const minutesLate = Math.floor(
                 (now - booking.endTime) / (1000 * 60),
             );
             const hoursLate = Math.ceil(minutesLate / 60);
-            const fine = hoursLate * FINE_PER_HOUR;
+            const hourlyRate = booking.hourlyRate || 50;
+            const fine = Math.ceil(hoursLate * hourlyRate * FINE_MULTIPLIER);
 
             booking.fine = fine;
             booking.finePaid = false;
             booking.isCheckedOut = false;
-            // Keep spot occupied until checkout/payment
+            // Keep spot OCCUPIED until checkout/payment
         } else {
-            // No-show: free the spot for future bookings
+            // No-show case: never checked in, now past end time
+            // Treat as invalid and free the spot
+            booking.status = "invalid";
             booking.fine = 0;
-            booking.finePaid = false;
-            booking.isCheckedOut = true;
-            booking.actualExitTime = now;
 
             if (booking.parkingSpot) {
                 await ParkingSpot.findByIdAndUpdate(booking.parkingSpot._id, {
@@ -317,12 +424,43 @@ export async function autoExpireBookingsService() {
         }
 
         await booking.save();
-        results.push(booking._id);
+        expiredResults.push(booking._id);
+    }
+
+    // Find pending bookings that are past late grace period
+    const lateGraceExpiredBookings = await Booking.find({
+        status: "pending",
+    }).populate("parkingSpot");
+
+    const graceExpiredResults = [];
+
+    for (const booking of lateGraceExpiredBookings) {
+        const startTime = new Date(booking.startTime);
+        const lateGraceEnd = new Date(
+            startTime.getTime() + GRACE_PERIOD_MINUTES * 60 * 1000,
+        );
+
+        if (now > lateGraceEnd) {
+            // Grace period expired, mark as invalid and free spot
+            booking.status = "invalid";
+            await booking.save();
+
+            if (booking.parkingSpot) {
+                await ParkingSpot.findByIdAndUpdate(booking.parkingSpot._id, {
+                    isOccupied: false,
+                });
+            }
+
+            graceExpiredResults.push(booking._id);
+        }
     }
 
     return {
-        expiredCount: results.length,
-        expiredBookings: results,
+        expiredCount: expiredResults.length,
+        graceExpiredCount: graceExpiredResults.length,
+        totalProcessed: expiredResults.length + graceExpiredResults.length,
+        expiredBookings: expiredResults,
+        graceExpiredBookings: graceExpiredResults,
     };
 }
 

@@ -82,9 +82,11 @@ export async function getBookingStatus(req, res) {
                 isValid: result.isValid,
                 canCheckIn: result.canCheckIn,
                 canCheckOut: result.canCheckOut,
+                showQR: result.showQR,
                 requiresFinePayment: result.requiresFinePayment,
                 minutesLate: result.minutesLate,
                 hoursLate: result.hoursLate,
+                currentFine: result.currentFine,
             },
         });
     } catch (error) {
