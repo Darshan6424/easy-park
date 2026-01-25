@@ -18,9 +18,11 @@ async function addLocation(req, res) {
     }
 }
 
-async function getLocations(_, res) {
+async function getLocations(req, res) {
     try {
-        const locations = await parkingLocationService.getAllLocations();
+        const ownerOnly = req.query.ownerOnly === "true";
+        const filter = ownerOnly ? { owner: req.user.id } : {};
+        const locations = await parkingLocationService.getAllLocations(filter);
         res.status(200).json({
             count: locations.length,
             data: locations,

@@ -9,7 +9,7 @@ import {
 
 export async function bookSpot(req, res) {
     const { type, duration, time, parkingSpot } = req.body;
-    const user = req.user;
+    const user = req.user?.id || req.user?._id;
     try {
         const bookingDetails = {
             user,

@@ -21,6 +21,7 @@ import MyBookingsComponent from "./components/ui/myBookings.jsx";
 import About from "./pages/about.jsx";
 import FAQ from "./pages/faq.jsx";
 import RegisterOwner from "./pages/register-owner.jsx";
+import OwnerMapPage from "./pages/ownerMap.jsx";
 
 function App() {
   return (
@@ -133,6 +134,14 @@ function App() {
             element={
               <Layout>
                 <QRScannerPage />
+              </Layout>
+            }
+          />
+          <Route
+            path="/owner-map"
+            element={
+              <Layout>
+                <OwnerMapPage />
               </Layout>
             }
           />

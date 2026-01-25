@@ -37,11 +37,17 @@ export default function BookingTicket() {
         id: booking._id,
         spot: booking.parkingSpot?.spotNumber,
         location: getLocationName(),
+        locationId:
+          booking?.location?._id ||
+          booking?.location ||
+          booking?.parkingSpot?.parkingLocation?._id,
+        parkingSpotId: booking?.parkingSpot?._id,
         start: booking.startTime,
         end: booking.endTime,
         type: booking.type,
         cost: calculateTotalCost(),
         status: booking.status,
+        fine: booking.fine,
       });
       console.log(ticketData);
       const qr = generateQr(ticketData);
@@ -89,17 +95,17 @@ export default function BookingTicket() {
 
   const calculateDuration = () => {
     if (!booking) return 0;
+    if (booking.durationHours) return booking.durationHours;
     const start = new Date(booking.startTime);
     const end = new Date(booking.endTime);
     const hours = Math.floor((end - start) / (1000 * 60 * 60));
     return hours;
   };
-
+ 
   const getHourlyRate = () => {
-    // Try to get rate from location
+    // Try to get rate from booking first
     const rate =
-      booking?.parkingSpot?.parkingLocation?.cost ||
-      booking?.location?.cost ||
+      booking?.hourlyRate ||
       (booking?.type?.toLowerCase() === "car" ? 50 : 30);
     return rate;
   };
@@ -107,12 +113,12 @@ export default function BookingTicket() {
   const calculateTotalCost = () => {
     if (!booking) return 0;
 
-    // If totalCost is already stored, use it
+    // Prefer pre-calculated value
     if (booking.totalCost && !isNaN(booking.totalCost)) {
       return booking.totalCost;
     }
 
-    // Otherwise calculate: duration × hourly rate
+    // Fallback calculation
     const duration = calculateDuration();
     const rate = getHourlyRate();
     return duration * rate;
@@ -135,7 +141,27 @@ export default function BookingTicket() {
   };
 
   const getTimeRemaining = () => {
-    if (!booking || booking.status !== "active") return null;
+    if (!booking) return null;
+
+    // For pending-arrival, show time until grace period expires
+    if (booking.status === "pending-arrival") {
+      const now = new Date();
+      const graceExpiry = new Date(booking.graceExpiryTime);
+      const diff = graceExpiry - now;
+
+      if (diff <= 0) return "Grace Expired";
+
+      const minutes = Math.floor(diff / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (minutes > 0) {
+        return `${minutes}m ${seconds}s to check in`;
+      }
+      return `${seconds}s to check in`;
+    }
+
+    // For active bookings, show time until end
+    if (booking.status !== "active") return null;
 
     const now = new Date();
     const end = new Date(booking.endTime);
@@ -200,6 +226,10 @@ export default function BookingTicket() {
 
   const timeRemaining = getTimeRemaining();
   const isActive = booking.status?.toLowerCase() === "active";
+  const isPendingArrival = booking.status?.toLowerCase() === "pending-arrival";
+  const isInvalid = booking.status?.toLowerCase() === "invalid";
+  const hasExpired = booking.status?.toLowerCase() === "expired";
+  const isCheckedOut = booking.isCheckedOut;
   const duration = calculateDuration();
   const hourlyRate = getHourlyRate();
   const totalCost = calculateTotalCost();
@@ -246,7 +276,7 @@ export default function BookingTicket() {
                   </div>
                 </div>
 
-                {isActive && timeRemaining && (
+                {(isActive || isPendingArrival) && timeRemaining && (
                   <div className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-lg px-3 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <Timer size={14} />
@@ -260,15 +290,52 @@ export default function BookingTicket() {
               <div className="flex items-center gap-2 mt-2">
                 <div
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs ${
-                    isActive
-                      ? "bg-success/20 border border-success/30 text-white"
-                      : "bg-white/20 border border-white/30 text-white"
+                    isPendingArrival
+                      ? "bg-warning/20 border border-warning/30 text-white"
+                      : isActive
+                        ? "bg-success/20 border border-success/30 text-white"
+                        : isInvalid
+                          ? "bg-error/20 border border-error/30 text-white"
+                          : "bg-white/20 border border-white/30 text-white"
                   }`}
                 >
-                  <CheckCircle size={12} strokeWidth={2.5} />
-                  <span className="capitalize">{booking.status}</span>
+                  {isPendingArrival ? (
+                    <Timer size={12} strokeWidth={2.5} />
+                  ) : (
+                    <CheckCircle size={12} strokeWidth={2.5} />
+                  )}
+                  <span className="capitalize">
+                    {isPendingArrival
+                      ? "Pending Arrival"
+                      : booking.status?.replace("-", " ")}
+                  </span>
                 </div>
               </div>
+
+              {isPendingArrival && (
+                <div className="mt-3 bg-white/20 border border-white/40 rounded-lg px-3 py-2 text-xs text-white">
+                  <strong>Check in required!</strong> Scan this QR at the
+                  parking location within {timeRemaining || "15 minutes"} to
+                  activate your booking.
+                </div>
+              )}
+              {isInvalid && (
+                <div className="mt-3 bg-white/20 border border-white/40 rounded-lg px-3 py-2 text-xs text-white">
+                  <strong>Booking Invalid:</strong> Grace period expired. You
+                  did not check in within 15 minutes of booking start time.
+                </div>
+              )}
+              {hasExpired && !isCheckedOut && (
+                <div className="mt-3 bg-white/20 border border-white/40 rounded-lg px-3 py-2 text-xs text-white">
+                  Booking time ended. Scan this QR at the gate to pay any fine
+                  and exit.
+                </div>
+              )}
+              {booking.fine > 0 && !booking.finePaid && (
+                <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
+                  Fine due: रु {booking.fine}. Payment required before exit.
+                </div>
+              )}
             </div>
           </div>
 

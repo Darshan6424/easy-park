@@ -15,8 +15,14 @@ export async function checkAndUpdateExpiredBookings() {
             endTime: { $lt: now },
         });
 
+        // Find all pending-arrival bookings that have passed their grace period
+        const graceExpiredBookings = await Booking.find({
+            status: "pending-arrival",
+            graceExpiryTime: { $lt: now },
+        });
+
         console.log(
-            `Found ${expiredBookings.length} expired bookings to update`,
+            `Found ${expiredBookings.length} expired bookings and ${graceExpiredBookings.length} grace-expired bookings to update`,
         );
 
         // Update each expired booking
@@ -33,11 +39,32 @@ export async function checkAndUpdateExpiredBookings() {
             return booking._id;
         });
 
-        const updatedIds = await Promise.all(updatePromises);
+        // Update each grace-expired booking
+        const graceUpdatePromises = graceExpiredBookings.map(
+            async (booking) => {
+                // Mark as invalid and free the spot
+                booking.status = "invalid";
+                await booking.save();
+
+                // Free up the parking spot
+                await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
+                    isOccupied: false,
+                });
+
+                return booking._id;
+            },
+        );
+
+        const updatedIds = await Promise.all([
+            ...updatePromises,
+            ...graceUpdatePromises,
+        ]);
 
         return {
             success: true,
             count: updatedIds.length,
+            expiredCount: expiredBookings.length,
+            graceExpiredCount: graceExpiredBookings.length,
             bookingIds: updatedIds,
         };
     } catch (error) {

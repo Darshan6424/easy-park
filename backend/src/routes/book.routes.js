@@ -21,6 +21,7 @@ import {
     autoExpireBookings,
     getUserRevenue,
     getBookingsWithFines,
+    payFineAndCheckout,
 } from "../controllers/checkinout.controllers.js";
 
 const router = express.Router();
@@ -59,6 +60,7 @@ router.get("/", protectRoute, getBooking);
 router.post("/:id/check-in", protectRoute, checkInBooking);
 router.post("/:id/check-out", protectRoute, checkOutBooking);
 router.post("/:id/scan", protectRoute, scanBooking); // Smart endpoint
+router.post("/:id/pay-fine", protectRoute, payFineAndCheckout);
 
 // Get booking status (with validation flags)
 router.get("/:id/status", protectRoute, getBookingStatus);

@@ -53,7 +53,7 @@ export default function Header() {
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2">
               <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-background font-bold text-xl">
-                EP
+                PMI
               </div>
               <span className="text-2xl font-bold text-primary">
                 {APP_CONFIG.name.english}
@@ -89,6 +89,14 @@ export default function Header() {
                 >
                   <ScanLine size={18} />
                   Scan
+                </Link>
+              )}
+              {isOwnerOrAdmin && (
+                <Link
+                  to="/owner-map"
+                  className="text-text hover:text-primary transition-colors"
+                >
+                  Manage Map
                 </Link>
               )}
               <Link
@@ -208,6 +216,15 @@ export default function Header() {
                 >
                   <ScanLine size={18} />
                   Scan Ticket
+                </Link>
+              )}
+              {isOwnerOrAdmin && (
+                <Link
+                  to="/owner-map"
+                  className="text-text hover:text-primary transition-colors py-2"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Manage Map
                 </Link>
               )}
               <Link

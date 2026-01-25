@@ -5,13 +5,18 @@ import {
     autoExpireBookingsService,
     calculateRevenueService,
     getBookingsWithFinesService,
+    payFineAndCheckoutService,
 } from "../services/checkinout.services.js";
 
 // Check-in controller
 export async function checkInBooking(req, res) {
     try {
         const { bookingId } = req.params;
-        const result = await checkInBookingService(bookingId);
+        const { locationId } = req.body || {};
+        const result = await checkInBookingService(bookingId, {
+            locationId,
+            user: req.user,
+        });
 
         return res.status(200).json({
             success: true,
@@ -35,7 +40,11 @@ export async function checkInBooking(req, res) {
 export async function checkOutBooking(req, res) {
     try {
         const { bookingId } = req.params;
-        const result = await checkOutBookingService(bookingId);
+        const { locationId } = req.body || {};
+        const result = await checkOutBookingService(bookingId, {
+            locationId,
+            user: req.user,
+        });
 
         return res.status(200).json({
             success: true,
@@ -60,7 +69,11 @@ export async function checkOutBooking(req, res) {
 export async function getBookingStatus(req, res) {
     try {
         const { bookingId } = req.params;
-        const result = await getBookingStatusService(bookingId);
+        const { locationId } = req.query;
+        const result = await getBookingStatusService(bookingId, {
+            locationId,
+            user: req.user,
+        });
 
         return res.status(200).json({
             success: true,
@@ -69,6 +82,9 @@ export async function getBookingStatus(req, res) {
                 isValid: result.isValid,
                 canCheckIn: result.canCheckIn,
                 canCheckOut: result.canCheckOut,
+                requiresFinePayment: result.requiresFinePayment,
+                minutesLate: result.minutesLate,
+                hoursLate: result.hoursLate,
             },
         });
     } catch (error) {
@@ -108,16 +124,23 @@ export async function checkBookingExpiry(req, res) {
 export async function scanBooking(req, res) {
     try {
         const { id } = req.params;
+        const { locationId } = req.body || {};
         console.log("reached in first controller,", id);
 
         // Get booking status
-        const statusResult = await getBookingStatusService(id);
+        const statusResult = await getBookingStatusService(id, {
+            locationId,
+            user: req.user,
+        });
         console.log("reachec back from firt helper, 3", statusResult);
         const { booking, canCheckIn, canCheckOut } = statusResult;
 
         if (canCheckIn) {
             // Check-in
-            const checkInResult = await checkInBookingService(id);
+            const checkInResult = await checkInBookingService(id, {
+                locationId,
+                user: req.user,
+            });
             return res.status(200).json({
                 success: true,
                 action: "check-in",
@@ -130,16 +153,26 @@ export async function scanBooking(req, res) {
             });
         } else if (canCheckOut) {
             // Check-out
-            const checkOutResult = await checkOutBookingService(id);
+            const checkOutResult = await checkOutBookingService(id, {
+                locationId,
+                user: req.user,
+            });
+
+            const action = checkOutResult.requiresFinePayment
+                ? "fine-payment"
+                : "check-out";
+
             return res.status(200).json({
                 success: true,
-                action: "check-out",
+                action,
                 message: checkOutResult.message,
                 data: {
                     booking: checkOutResult.booking,
                     fine: checkOutResult.fine,
                     minutesLate: checkOutResult.minutesLate,
                     hoursLate: checkOutResult.hoursLate,
+                    requiresFinePayment:
+                        checkOutResult.requiresFinePayment,
                 },
             });
         } else {
@@ -170,6 +203,35 @@ export async function autoExpireBookings(req, res) {
         });
     } catch (error) {
         return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+}
+
+// Pay fine then complete checkout
+export async function payFineAndCheckout(req, res) {
+    try {
+        const { id } = req.params;
+        const { locationId } = req.body || {};
+
+        const result = await payFineAndCheckoutService(id, {
+            locationId,
+            user: req.user,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Fine paid and checkout completed",
+            data: {
+                booking: result.booking,
+                fine: result.fine,
+                minutesLate: result.minutesLate,
+                hoursLate: result.hoursLate,
+            },
+        });
+    } catch (error) {
+        return res.status(400).json({
             success: false,
             message: error.message,
         });

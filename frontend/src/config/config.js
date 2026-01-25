@@ -1,16 +1,16 @@
 // frontend/src/config/config.js
 const APP_CONFIG = {
     name: {
-        english: "Easy Park",
-        nepali: "इजी पार्क",
+        english: "ParkMeIn",
+        nepali: "पार्कमीइन",
     },
-    email: "support@easypark.com",
+    email: "support@parkmein.com",
     phone: "+977 9822222222",
     address: "Lalitpur, Nepal",
     social: {
-        twitter: "https://twitter.com/easypark",
-        facebook: "https://facebook.com/easypark",
-        instagram: "https://instagram.com/easypark",
+        twitter: "https://twitter.com/parkmein",
+        facebook: "https://facebook.com/parkmein",
+        instagram: "https://instagram.com/parkmein",
     },
     colors: {
         primary: "#DC143C",

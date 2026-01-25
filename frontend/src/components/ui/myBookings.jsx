@@ -99,6 +99,10 @@ export default function MyBookings() {
 
   const getStatusIcon = (status) => {
     switch (status?.toLowerCase()) {
+      case "pending-arrival":
+        return (
+          <Timer className="text-warning" size={20} strokeWidth={2.5} />
+        );
       case "active":
         return (
           <CheckCircle className="text-success" size={20} strokeWidth={2.5} />
@@ -108,6 +112,8 @@ export default function MyBookings() {
           <CheckCircle className="text-muted" size={20} strokeWidth={2.5} />
         );
       case "expired":
+        return <XCircle className="text-error" size={20} strokeWidth={2.5} />;
+      case "invalid":
         return <XCircle className="text-error" size={20} strokeWidth={2.5} />;
       case "cancelled":
         return <XCircle className="text-warning" size={20} strokeWidth={2.5} />;
@@ -120,11 +126,15 @@ export default function MyBookings() {
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
+      case "pending-arrival":
+        return "bg-warning/10 text-warning border-warning";
       case "active":
         return "bg-success/10 text-success border-success";
       case "completed":
         return "bg-muted/10 text-muted border-muted";
       case "expired":
+        return "bg-error/10 text-error border-error";
+      case "invalid":
         return "bg-error/10 text-error border-error";
       case "cancelled":
         return "bg-warning/10 text-warning border-warning";
@@ -150,25 +160,30 @@ export default function MyBookings() {
     });
   };
 
-  const calculateDuration = (startTime, endTime) => {
+const calculateDuration = (startTime, endTime, booking) => {
+    if (booking?.durationHours) return booking.durationHours;
     const start = new Date(startTime);
     const end = new Date(endTime);
     const diff = end - start;
     const hours = Math.floor(diff / (1000 * 60 * 60));
     return hours;
   };
-
+ 
   const calculateCost = (booking) => {
     // Try to get totalCost from booking
     if (booking.totalCost && !isNaN(booking.totalCost)) {
       return booking.totalCost;
     }
-
+ 
     // Calculate from duration and rate
-    const duration = calculateDuration(booking.startTime, booking.endTime);
+    const duration = calculateDuration(
+      booking.startTime,
+      booking.endTime,
+      booking,
+    );
     const hourlyRate =
-      booking.parkingSpot?.hourlyRate ||
       booking.hourlyRate ||
+      booking.parkingSpot?.hourlyRate ||
       (booking.type?.toLowerCase() === "car" ? 50 : 30);
 
     return duration * hourlyRate;
@@ -373,6 +388,7 @@ export default function MyBookings() {
         ) : (
           <div className="grid gap-6">
             {filteredBookings.map((booking) => {
+              const statusLower = booking.status?.toLowerCase();
               const locationName = getLocationName(booking);
               const spotNumber = getSpotNumber(booking);
               const totalCost = calculateCost(booking);
@@ -381,6 +397,10 @@ export default function MyBookings() {
                 booking.endTime,
               );
               const gracePeriodStatus = getGracePeriodStatus(booking);
+
+              const canViewTicket =
+                !booking.isCheckedOut &&
+                (statusLower === "active" || statusLower === "expired");
 
               return (
                 <div
@@ -521,6 +541,18 @@ export default function MyBookings() {
                         </div>
                       </div>
 
+                      {booking.fine > 0 && !booking.finePaid && (
+                        <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                          <p className="text-orange-700 font-semibold text-sm flex items-center gap-2">
+                            <AlertCircle size={16} />
+                            Fine due: रु {booking.fine}
+                          </p>
+                          <p className="text-xs text-orange-600 mt-1">
+                            Scan the ticket QR at the gate to pay and exit.
+                          </p>
+                        </div>
+                      )}
+
                       {/* Time Remaining (Active only) */}
                       {booking.status?.toLowerCase() === "active" &&
                         !gracePeriodStatus && (
@@ -549,32 +581,34 @@ export default function MyBookings() {
 
                       {/* Action Buttons */}
                       <div className="flex gap-2">
-                        {booking.status?.toLowerCase() === "active" && (
-                          <>
-                            <button
-                              onClick={() =>
-                                navigate(`/booking/${booking._id}`)
-                              }
-                              className="flex-1 lg:flex-none bg-gradient-to-r from-primary to-accent text-white px-5 py-2.5 rounded-lg hover:shadow-lg transition-all font-bold text-sm flex items-center justify-center gap-2"
-                            >
-                              <Eye size={16} />
-                              View Ticket
-                            </button>
-                            <button
-                              onClick={() => handleDeleteBooking(booking._id)}
-                              disabled={deletingId === booking._id}
-                              className="px-4 py-2.5 bg-error/10 border-2 border-error/30 text-error rounded-lg hover:bg-error/20 transition-all font-medium disabled:opacity-50 flex items-center justify-center"
-                              title="Cancel booking"
-                            >
-                              {deletingId === booking._id ? (
-                                <Loader2 size={16} className="animate-spin" />
-                              ) : (
-                                <Trash2 size={16} strokeWidth={2.5} />
-                              )}
-                            </button>
-                          </>
+                        {canViewTicket && (
+                          <button
+                            onClick={() => navigate(`/booking/${booking._id}`)}
+                            className="flex-1 lg:flex-none bg-gradient-to-r from-primary to-accent text-white px-5 py-2.5 rounded-lg hover:shadow-lg transition-all font-bold text-sm flex items-center justify-center gap-2"
+                          >
+                            <Eye size={16} />
+                            {statusLower === "expired"
+                              ? "View / Exit"
+                              : "View Ticket"}
+                          </button>
                         )}
-                        {booking.status?.toLowerCase() === "completed" && (
+
+                        {statusLower === "active" && (
+                          <button
+                            onClick={() => handleDeleteBooking(booking._id)}
+                            disabled={deletingId === booking._id}
+                            className="px-4 py-2.5 bg-error/10 border-2 border-error/30 text-error rounded-lg hover:bg-error/20 transition-all font-medium disabled:opacity-50 flex items-center justify-center"
+                            title="Cancel booking"
+                          >
+                            {deletingId === booking._id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={16} strokeWidth={2.5} />
+                            )}
+                          </button>
+                        )}
+
+                        {statusLower === "completed" && (
                           <button
                             onClick={() => navigate("/my-bookings")}
                             className="flex-1 lg:flex-none bg-background border-2 border-border text-text px-5 py-2.5 rounded-lg hover:border-primary transition-all font-medium text-sm flex items-center justify-center gap-2"

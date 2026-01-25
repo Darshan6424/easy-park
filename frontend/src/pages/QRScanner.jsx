@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import {
   CheckCircle,
@@ -11,16 +11,79 @@ import {
   IndianRupee,
   CreditCard,
 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { getUser } from "../utils/auth.js";
 
 export default function QRScannerPage() {
+  const [searchParams] = useSearchParams();
+  const user = getUser();
+
   const [scanning, setScanning] = useState(true);
   const [validating, setValidating] = useState(false);
   const [result, setResult] = useState(null);
   const [payingFine, setPayingFine] = useState(false);
   const [finePaid, setFinePaid] = useState(false);
+  const [ownerLocations, setOwnerLocations] = useState([]);
+  const [activeLocationId, setActiveLocationId] = useState(
+    searchParams.get("locationId") || ""
+  );
+  const [locationsLoading, setLocationsLoading] = useState(false);
+  const [locationError, setLocationError] = useState("");
+
+  const fetchOwnerLocations = async () => {
+    setLocationsLoading(true);
+    setLocationError("");
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/location?ownerOnly=true`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+      if (response.ok) {
+        const locations = data.data || data.locations || [];
+        const parsed = Array.isArray(locations) ? locations : [];
+        setOwnerLocations(parsed);
+
+        if (!activeLocationId && parsed.length === 1) {
+          setActiveLocationId(parsed[0]._id);
+        }
+      } else {
+        setLocationError(data.message || "Could not load locations");
+      }
+    } catch (error) {
+      setLocationError("Network error while loading locations");
+    } finally {
+      setLocationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.role === "OWNER" || user?.role === "ADMIN") {
+      fetchOwnerLocations();
+    }
+  }, [user?.role]);
 
   const scanBooking = async (bookingId, qrData) => {
     setValidating(true);
+    const locationForScan = activeLocationId || qrData.locationId;
+
+    if (!locationForScan) {
+      setResult({
+        valid: false,
+        message: "Select a location before scanning",
+      });
+      setValidating(false);
+      setScanning(false);
+      return;
+    }
+
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/api/booking/${bookingId}/scan`,
@@ -30,13 +93,16 @@ export default function QRScannerPage() {
             "Content-Type": "application/json",
           },
           credentials: "include",
+          body: JSON.stringify({ locationId: locationForScan }),
         },
       );
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        const action = data.action; // "check-in" or "check-out"
+        const requiresFinePayment = data.data?.requiresFinePayment;
+        const action = data.action ||
+          (requiresFinePayment ? "fine-payment" : data.data?.fine > 0 ? "check-out" : "check-out");
         const booking = data.data.booking;
 
         setResult({
@@ -48,8 +114,10 @@ export default function QRScannerPage() {
           minutesLate: data.data.minutesLate,
           fine: data.data.fine || 0,
           hoursLate: data.data.hoursLate || 0,
+          requiresFinePayment: requiresFinePayment,
           message: data.message,
         });
+        setFinePaid(!requiresFinePayment);
       } else {
         setResult({
           valid: false,
@@ -99,13 +167,62 @@ export default function QRScannerPage() {
   };
 
   const handlePayFine = async () => {
+    if (!result?.booking?._id) return;
+
+    const locationForScan = activeLocationId || result.qrData?.locationId;
+    if (!locationForScan) {
+      setResult((prev) => ({
+        ...prev,
+        valid: false,
+        message: "Select a location before paying the fine",
+      }));
+      return;
+    }
+
     setPayingFine(true);
-    
-    // Simulate payment processing (2 seconds)
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setPayingFine(false);
-    setFinePaid(true);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/booking/${result.booking._id}/pay-fine`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ locationId: locationForScan }),
+        }
+      );
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setFinePaid(true);
+        setResult((prev) => ({
+          ...prev,
+          valid: true,
+          action: "check-out",
+          booking: data.data?.booking || prev.booking,
+          fine: data.data?.fine ?? prev.fine,
+          minutesLate: data.data?.minutesLate ?? prev.minutesLate,
+          hoursLate: data.data?.hoursLate ?? prev.hoursLate,
+          requiresFinePayment: false,
+          message: data.message || "Payment successful. You may exit.",
+        }));
+      } else {
+        setResult((prev) => ({
+          ...prev,
+          valid: false,
+          message: data.message || "Fine payment failed",
+        }));
+      }
+    } catch (error) {
+      setResult((prev) => ({
+        ...prev,
+        valid: false,
+        message: "Network error processing fine",
+      }));
+    } finally {
+      setPayingFine(false);
+    }
   };
 
   return (
@@ -122,6 +239,48 @@ export default function QRScannerPage() {
 
         {/* Scanner Area */}
         <div className="p-6">
+          <div className="mb-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-gray-700">
+                Scan Location
+              </label>
+              {locationsLoading && (
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <Loader2 className="animate-spin" size={14} /> Loading...
+                </div>
+              )}
+            </div>
+
+            {ownerLocations.length > 0 ? (
+              <select
+                value={activeLocationId}
+                onChange={(e) => setActiveLocationId(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select a location</option>
+                {ownerLocations.map((loc) => (
+                  <option key={loc._id} value={loc._id}>
+                    {loc.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-xs text-gray-500">
+                The scanner will use the location embedded in the QR code.
+              </p>
+            )}
+
+            {locationError && (
+              <p className="text-xs text-red-600">{locationError}</p>
+            )}
+
+            {!activeLocationId && result?.qrData?.location && (
+              <p className="text-xs text-gray-600">
+                QR Location: {result.qrData.location}
+              </p>
+            )}
+          </div>
+
           {scanning && !validating && (
             <div className="space-y-4">
               <div className="relative rounded-xl overflow-hidden border-4 border-blue-500">
@@ -169,6 +328,12 @@ export default function QRScannerPage() {
                         size={80}
                         strokeWidth={3}
                       />
+                    ) : result.action === "fine-payment" || result.requiresFinePayment ? (
+                      <LogOut
+                        className="text-orange-500"
+                        size={80}
+                        strokeWidth={3}
+                      />
                     ) : (
                       <LogOut
                         className={`${result.fine > 0 ? "text-orange-500" : "text-success"}`}
@@ -188,9 +353,11 @@ export default function QRScannerPage() {
                 <h2 className="text-2xl font-bold mt-4 text-gray-800">
                   {result.action === "check-in"
                     ? "Checked In"
-                    : result.action === "check-out"
-                      ? "Checked Out"
-                      : result.message}
+                    : result.action === "fine-payment" || result.requiresFinePayment
+                      ? "Fine Payment Needed"
+                      : result.action === "check-out"
+                        ? "Checked Out"
+                        : result.message}
                 </h2>
                 <p className="text-gray-600 text-sm mt-1">{result.message}</p>
               </div>
@@ -236,7 +403,7 @@ export default function QRScannerPage() {
 
               {/* Fine Alert (Check-out) */}
               {result.valid &&
-                result.action === "check-out" &&
+                (result.requiresFinePayment || result.action === "fine-payment") &&
                 result.fine > 0 && (
                   <div className="mt-4 p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg">
                     <div className="font-semibold text-orange-800 text-lg mb-2">
@@ -258,7 +425,10 @@ export default function QRScannerPage() {
                         </p>
                         <button
                           onClick={handlePayFine}
-                          disabled={payingFine}
+                          disabled={
+                            payingFine ||
+                            !(activeLocationId || result.qrData?.locationId)
+                          }
                           className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
                         >
                           {payingFine ? (

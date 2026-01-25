@@ -33,6 +33,14 @@ export async function book(bookingDetails) {
 
     const startTime = new Date(time);
     const endTime = new Date(startTime.getTime() + duration * 60 * 60 * 1000);
+    const hourlyRate = spot.parkingLocation?.cost || 0;
+    const totalCost = hourlyRate * duration;
+
+    // Grace period: 15 minutes from start time
+    const GRACE_PERIOD_MINUTES = 15;
+    const graceExpiryTime = new Date(
+        startTime.getTime() + GRACE_PERIOD_MINUTES * 60 * 1000,
+    );
 
     // Create booking with location reference from the parking spot
     const newBooking = await Booking.create({
@@ -42,7 +50,11 @@ export async function book(bookingDetails) {
         type,
         startTime,
         endTime,
-        status: "active",
+        status: "pending-arrival",
+        hourlyRate,
+        durationHours: duration,
+        totalCost,
+        graceExpiryTime,
     });
 
     // Mark spot as occupied
@@ -109,6 +121,11 @@ export async function editBookingService(
 
     const updateFields = {};
 
+    // Track rate/duration for consistent pricing
+    let hourlyRate = bookingDetails.hourlyRate;
+    let durationHours =
+        (bookingDetails.endTime - bookingDetails.startTime) / (60 * 60 * 1000);
+
     // If parking spot is being changed, update location as well
     if (parkingSpot) {
         const parkingSpotDetails =
@@ -118,23 +135,36 @@ export async function editBookingService(
         }
         updateFields.parkingSpot = parkingSpot;
         updateFields.location = parkingSpotDetails.parkingLocation._id;
+        hourlyRate = parkingSpotDetails.parkingLocation?.cost || hourlyRate || 0;
     }
 
     if (type) {
         updateFields.type = type;
     }
 
-    if (time || duration) {
+    if (time || duration !== undefined) {
         const startTime = time ? new Date(time) : bookingDetails.startTime;
-        const durationToUse =
+        durationHours =
             duration !== undefined
                 ? duration
                 : (bookingDetails.endTime - bookingDetails.startTime) /
                   (60 * 60 * 1000);
+
         updateFields.startTime = startTime;
         updateFields.endTime = new Date(
-            startTime.getTime() + durationToUse * 60 * 60 * 1000,
+            startTime.getTime() + durationHours * 60 * 60 * 1000,
         );
+    }
+
+    // Recalculate pricing if we have a rate
+    if (hourlyRate) {
+        updateFields.hourlyRate = hourlyRate;
+    }
+    if (durationHours) {
+        updateFields.durationHours = durationHours;
+    }
+    if (hourlyRate && durationHours) {
+        updateFields.totalCost = hourlyRate * durationHours;
     }
 
     const updatedBooking = await Booking.findByIdAndUpdate(

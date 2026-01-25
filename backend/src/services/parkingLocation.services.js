@@ -42,8 +42,8 @@ async function createLocation(owner, locationData) {
     return populatedLocation;
 }
 
-async function getAllLocations() {
-    const locations = await ParkingLocation.find()
+async function getAllLocations(filter = {}) {
+    const locations = await ParkingLocation.find(filter)
         .populate("parkingSpots")
         .populate("owner") // Add this
         .sort({ createdAt: -1 });
