@@ -13,6 +13,12 @@ function getLocationFromBooking(booking) {
 }
 
 function assertLocationScope(booking, locationId, user) {
+    // Mega admin (admin@test.com) can access all locations
+    if (user?.email === "admin@test.com") {
+        const locationRef = getLocationFromBooking(booking);
+        return locationRef?._id?.toString() || locationRef?.toString();
+    }
+
     const locationRef = getLocationFromBooking(booking);
     const bookingLocationId =
         locationRef?._id?.toString() || locationRef?.toString();
@@ -51,6 +57,11 @@ export async function checkInBookingService(bookingId, options = {}) {
     }
 
     assertLocationScope(booking, locationId, user);
+
+    // Prevent QR code reuse after checkout
+    if (booking.qrCodeUsed) {
+        throw new Error("This QR code has already been used for a completed booking. Please create a new booking.");
+    }
 
     if (booking.isCheckedIn) {
         throw new Error("Already checked in");
@@ -158,7 +169,7 @@ export async function checkInBookingService(bookingId, options = {}) {
 
 // Check-out service - when user leaves and scans QR
 export async function checkOutBookingService(bookingId, options = {}) {
-    const { locationId, user, markFinePaid = false } = options;
+    const { locationId, user } = options;
 
     if (!mongoose.Types.ObjectId.isValid(bookingId)) {
         throw new Error("Invalid booking ID");
@@ -177,24 +188,17 @@ export async function checkOutBookingService(bookingId, options = {}) {
 
     assertLocationScope(booking, locationId, user);
 
+    // Prevent QR code reuse
+    if (booking.qrCodeUsed) {
+        throw new Error("This QR code has already been used. Booking is completed.");
+    }
+
     if (!booking.isCheckedIn) {
         throw new Error("Must check in before checking out");
     }
 
-    if (booking.isCheckedOut && !markFinePaid) {
+    if (booking.isCheckedOut) {
         throw new Error("Already checked out");
-    }
-
-    // If already checked out and this is just fine payment confirmation
-    if (booking.isCheckedOut && markFinePaid) {
-        return {
-            booking,
-            fine: booking.fine || 0,
-            minutesLate: 0,
-            hoursLate: 0,
-            requiresFinePayment: false,
-            message: "Already checked out",
-        };
     }
 
     const now = new Date();
@@ -212,24 +216,14 @@ export async function checkOutBookingService(bookingId, options = {}) {
         fine = Math.ceil(hoursLate * hourlyRate * FINE_MULTIPLIER);
         booking.fine = fine;
         booking.status = "expired"; // Mark as expired when overstay detected
-        requiresFinePayment = !markFinePaid;
-        message = `Overstay fine: रु ${fine} (${hoursLate} hour${hoursLate > 1 ? "s" : ""} late at ${hourlyRate * FINE_MULTIPLIER}/hr)`;
-
-        if (markFinePaid) {
-            // Fine paid, complete checkout
-            booking.finePaid = true;
-            booking.actualExitTime = now;
-            booking.isCheckedOut = true;
-            booking.status = "completed";
-            requiresFinePayment = false;
-            message = `Fine of रु ${fine} paid. Checkout completed.`;
-        } else {
-            // Fine not paid yet, require payment
-            booking.finePaid = false;
-            booking.actualExitTime = null;
-            booking.isCheckedOut = false;
-            // Keep spot occupied until payment
-        }
+        booking.finePaid = false;
+        booking.attemptedCheckout = true; // User tried to checkout
+        requiresFinePayment = true;
+        message = `Cannot checkout - Fine pending. Please pay रु ${fine} (${hoursLate} hour${hoursLate > 1 ? "s" : ""} late) before checkout.`;
+        
+        // Do NOT check out, do NOT free spot
+        booking.actualExitTime = null;
+        booking.isCheckedOut = false;
     } else {
         // No overstay, normal checkout
         booking.fine = 0;
@@ -237,13 +231,14 @@ export async function checkOutBookingService(bookingId, options = {}) {
         booking.status = "completed";
         booking.actualExitTime = now;
         booking.isCheckedOut = true;
-    }
-
-    // Free parking spot ONLY when checkout is finalized (no fine or fine paid)
-    if (booking.parkingSpot && !requiresFinePayment) {
-        await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
-            isOccupied: false,
-        });
+        booking.qrCodeUsed = true; // Mark QR as used after successful checkout
+        
+        // Free parking spot for normal checkout
+        if (booking.parkingSpot) {
+            await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
+                isOccupied: false,
+            });
+        }
     }
 
     await booking.save();
@@ -258,17 +253,122 @@ export async function checkOutBookingService(bookingId, options = {}) {
     };
 }
 
-export async function payFineAndCheckoutService(bookingId, options = {}) {
-    const checkoutResult = await checkOutBookingService(bookingId, {
-        ...options,
-        markFinePaid: true,
-    });
+// Pay fine service - user pays fine for expired booking
+export async function payFineService(bookingId, options = {}) {
+    const { locationId, user } = options;
 
-    if (checkoutResult.requiresFinePayment) {
-        throw new Error("Fine payment could not be completed");
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+        throw new Error("Invalid booking ID");
     }
 
-    return checkoutResult;
+    const booking = await Booking.findById(bookingId)
+        .populate({
+            path: "parkingSpot",
+            populate: { path: "parkingLocation", populate: { path: "owner" } },
+        })
+        .populate({ path: "location", populate: { path: "owner" } });
+
+    if (!booking) {
+        throw new Error("Booking not found");
+    }
+
+    assertLocationScope(booking, locationId, user);
+
+    if (booking.status !== "expired") {
+        throw new Error("Booking is not expired. No fine to pay.");
+    }
+
+    if (!booking.attemptedCheckout) {
+        throw new Error("You must scan QR at the gate first before paying fine online.");
+    }
+
+    if (booking.finePaid) {
+        throw new Error("Fine already paid");
+    }
+
+    if (!booking.fine || booking.fine === 0) {
+        throw new Error("No fine amount on this booking");
+    }
+
+    // Calculate extra time parked beyond booking end time
+    const now = new Date();
+    const endTime = new Date(booking.endTime);
+    const minutesLate = Math.floor((now - endTime) / (1000 * 60));
+    const hoursLate = minutesLate > 0 ? Math.ceil(minutesLate / 60) : 0;
+
+    // Mark fine as paid (payment simulation for demo)
+    booking.finePaid = true;
+    await booking.save();
+
+    return {
+        booking,
+        fine: booking.fine,
+        hoursLate,
+        minutesLate: minutesLate > 0 ? minutesLate : 0,
+        message: `Fine of रु ${booking.fine} paid successfully. You may now checkout by scanning QR at the gate.`,
+    };
+}
+
+// Pay fine and checkout service - combined operation for guard scanner
+export async function payFineAndCheckoutService(bookingId, options = {}) {
+    const { locationId, user } = options;
+
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+        throw new Error("Invalid booking ID");
+    }
+
+    const booking = await Booking.findById(bookingId)
+        .populate({
+            path: "parkingSpot",
+            populate: { path: "parkingLocation", populate: { path: "owner" } },
+        })
+        .populate({ path: "location", populate: { path: "owner" } });
+
+    if (!booking) {
+        throw new Error("Booking not found");
+    }
+
+    assertLocationScope(booking, locationId, user);
+
+    // Prevent QR code reuse
+    if (booking.qrCodeUsed) {
+        throw new Error("This QR code has already been used. Booking is completed.");
+    }
+
+    if (booking.status !== "expired") {
+        throw new Error("Booking is not expired");
+    }
+
+    if (booking.finePaid) {
+        // Fine already paid, proceed with checkout
+        if (!booking.isCheckedOut) {
+            const now = new Date();
+            booking.actualExitTime = now;
+            booking.isCheckedOut = true;
+            booking.status = "completed";
+            booking.qrCodeUsed = true; // Mark QR as used
+
+            // Free parking spot
+            if (booking.parkingSpot) {
+                await ParkingSpot.findByIdAndUpdate(booking.parkingSpot, {
+                    isOccupied: false,
+                });
+            }
+
+            await booking.save();
+        }
+
+        return {
+            booking,
+            fine: booking.fine || 0,
+            minutesLate: 0,
+            hoursLate: 0,
+            message: "Checkout completed. Thank you!",
+        };
+    }
+
+    // Fine not paid yet
+    throw new Error("Fine must be paid before checkout");
 }
 
 // Get booking status for QR scanner validation
@@ -335,10 +435,11 @@ export async function getBookingStatusService(bookingId, options = {}) {
     }
 
     const requiresFinePayment =
-        minutesLate > 0 &&
+        booking.status === "expired" &&
         booking.isCheckedIn &&
         !booking.isCheckedOut &&
-        !booking.finePaid;
+        !booking.finePaid &&
+        (booking.fine > 0 || currentFine > 0);
 
     // Determine what actions are available
     const canCheckIn =

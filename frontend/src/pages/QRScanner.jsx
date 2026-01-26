@@ -74,7 +74,10 @@ export default function QRScannerPage() {
     setValidating(true);
     const locationForScan = activeLocationId || qrData.locationId;
 
-    if (!locationForScan) {
+    // Allow admin@test.com to scan without selecting location
+    const isMegaAdmin = user?.email === "admin@test.com";
+    
+    if (!locationForScan && !isMegaAdmin) {
       setResult({
         valid: false,
         message: "Select a location before scanning",
@@ -93,7 +96,7 @@ export default function QRScannerPage() {
             "Content-Type": "application/json",
           },
           credentials: "include",
-          body: JSON.stringify({ locationId: locationForScan }),
+          body: JSON.stringify({ locationId: locationForScan || null }),
         },
       );
 
@@ -101,8 +104,7 @@ export default function QRScannerPage() {
 
       if (response.ok && data.success) {
         const requiresFinePayment = data.data?.requiresFinePayment;
-        const action = data.action ||
-          (requiresFinePayment ? "fine-payment" : data.data?.fine > 0 ? "check-out" : "check-out");
+        const action = data.action || "check-out";
         const booking = data.data.booking;
 
         setResult({
@@ -119,10 +121,29 @@ export default function QRScannerPage() {
         });
         setFinePaid(!requiresFinePayment);
       } else {
-        setResult({
-          valid: false,
-          message: data.message || "Invalid Booking",
-        });
+        // Handle error response (e.g., fine payment required)
+        const requiresFinePayment = data.data?.requiresFinePayment;
+        const action = data.action || "error";
+
+        if (action === "fine-payment-required" || requiresFinePayment) {
+          setResult({
+            valid: false,
+            action: "fine-payment-required",
+            booking: data.data?.booking,
+            qrData: qrData,
+            fine: data.data?.fine || 0,
+            hoursLate: data.data?.hoursLate || 0,
+            minutesLate: data.data?.minutesLate || 0,
+            requiresFinePayment: true,
+            message: data.message || "Fine payment required before checkout",
+          });
+          setFinePaid(false);
+        } else {
+          setResult({
+            valid: false,
+            message: data.message || "Invalid Booking",
+          });
+        }
       }
     } catch (error) {
       setResult({
@@ -138,12 +159,15 @@ export default function QRScannerPage() {
   const handleScan = (results) => {
     if (results && results.length > 0 && !validating) {
       try {
-        const scannedData = JSON.parse(results[0].rawValue);
+        const scannedData = results[0].rawValue;
         console.log("QR Code Data:", scannedData);
 
-        if (scannedData.id) {
+        // QR code now contains just the booking ID
+        if (scannedData && scannedData.length === 24) { // MongoDB ObjectId length
           setScanning(false);
-          scanBooking(scannedData.id, scannedData);
+          scanBooking(scannedData, { id: scannedData });
+        } else {
+          throw new Error("Invalid booking ID format");
         }
       } catch (error) {
         console.error("QR Parse Error:", error);
@@ -169,8 +193,10 @@ export default function QRScannerPage() {
   const handlePayFine = async () => {
     if (!result?.booking?._id) return;
 
+    const isMegaAdmin = user?.email === "admin@test.com";
     const locationForScan = activeLocationId || result.qrData?.locationId;
-    if (!locationForScan) {
+    
+    if (!locationForScan && !isMegaAdmin) {
       setResult((prev) => ({
         ...prev,
         valid: false,
@@ -189,24 +215,52 @@ export default function QRScannerPage() {
             "Content-Type": "application/json",
           },
           credentials: "include",
-          body: JSON.stringify({ locationId: locationForScan }),
+          body: JSON.stringify({ locationId: locationForScan || null }),
         }
       );
 
       const data = await response.json();
       if (response.ok && data.success) {
-        setFinePaid(true);
-        setResult((prev) => ({
-          ...prev,
-          valid: true,
-          action: "check-out",
-          booking: data.data?.booking || prev.booking,
-          fine: data.data?.fine ?? prev.fine,
-          minutesLate: data.data?.minutesLate ?? prev.minutesLate,
-          hoursLate: data.data?.hoursLate ?? prev.hoursLate,
-          requiresFinePayment: false,
-          message: data.message || "Payment successful. You may exit.",
-        }));
+        // Fine paid successfully, now trigger checkout
+        const checkoutResponse = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/booking/${result.booking._id}/checkout-after-fine`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+            body: JSON.stringify({ locationId: locationForScan || null }),
+          }
+        );
+
+        const checkoutData = await checkoutResponse.json();
+        
+        if (checkoutResponse.ok && checkoutData.success) {
+          setFinePaid(true);
+          setResult((prev) => ({
+            ...prev,
+            valid: true,
+            action: "check-out",
+            booking: checkoutData.data?.booking || prev.booking,
+            fine: checkoutData.data?.fine ?? prev.fine,
+            minutesLate: checkoutData.data?.minutesLate ?? prev.minutesLate,
+            hoursLate: checkoutData.data?.hoursLate ?? prev.hoursLate,
+            requiresFinePayment: false,
+            message: checkoutData.message || "Payment successful. Checkout completed.",
+          }));
+        } else {
+          // Payment successful but checkout failed
+          setFinePaid(true);
+          setResult((prev) => ({
+            ...prev,
+            valid: true,
+            action: "fine-paid",
+            booking: data.data?.booking || prev.booking,
+            requiresFinePayment: false,
+            message: "Fine paid. Please scan again to complete checkout.",
+          }));
+        }
       } else {
         setResult((prev) => ({
           ...prev,
@@ -239,10 +293,19 @@ export default function QRScannerPage() {
 
         {/* Scanner Area */}
         <div className="p-6">
+          {user?.email === "admin@test.com" && (
+            <div className="mb-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <CheckCircle size={16} strokeWidth={2.5} />
+                <span>Mega Admin Access - All Locations Enabled</span>
+              </div>
+            </div>
+          )}
+          
           <div className="mb-4 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-sm font-semibold text-gray-700">
-                Scan Location
+                Scan Location {user?.email === "admin@test.com" && <span className="text-xs text-gray-500">(Optional)</span>}
               </label>
               {locationsLoading && (
                 <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -328,9 +391,15 @@ export default function QRScannerPage() {
                         size={80}
                         strokeWidth={3}
                       />
-                    ) : result.action === "fine-payment" || result.requiresFinePayment ? (
-                      <LogOut
+                    ) : result.action === "fine-payment-required" || result.requiresFinePayment ? (
+                      <CreditCard
                         className="text-orange-500"
+                        size={80}
+                        strokeWidth={3}
+                      />
+                    ) : result.action === "fine-paid" ? (
+                      <CheckCircle
+                        className="text-green-600"
                         size={80}
                         strokeWidth={3}
                       />
@@ -343,21 +412,33 @@ export default function QRScannerPage() {
                     )}
                   </>
                 ) : (
-                  <XCircle
-                    className="text-red-500"
-                    size={80}
-                    strokeWidth={3}
-                  />
+                  <>
+                    {result.action === "fine-payment-required" ? (
+                      <CreditCard
+                        className="text-orange-500"
+                        size={80}
+                        strokeWidth={3}
+                      />
+                    ) : (
+                      <XCircle
+                        className="text-red-500"
+                        size={80}
+                        strokeWidth={3}
+                      />
+                    )}
+                  </>
                 )}
 
                 <h2 className="text-2xl font-bold mt-4 text-gray-800">
                   {result.action === "check-in"
                     ? "Checked In"
-                    : result.action === "fine-payment" || result.requiresFinePayment
-                      ? "Fine Payment Needed"
-                      : result.action === "check-out"
-                        ? "Checked Out"
-                        : result.message}
+                    : result.action === "fine-payment-required"
+                      ? "⚠️ Fine Payment Required"
+                      : result.action === "fine-paid"
+                        ? "Fine Paid Successfully"
+                        : result.action === "check-out"
+                          ? "Checked Out"
+                          : result.message}
                 </h2>
                 <p className="text-gray-600 text-sm mt-1">{result.message}</p>
               </div>
@@ -401,9 +482,9 @@ export default function QRScannerPage() {
                   </div>
                 )}
 
-              {/* Fine Alert (Check-out) */}
-              {result.valid &&
-                (result.requiresFinePayment || result.action === "fine-payment") &&
+              {/* Fine Alert (Check-out or Payment Required) */}
+              {(result.action === "fine-payment-required" || 
+                (result.requiresFinePayment && !result.valid)) &&
                 result.fine > 0 && (
                   <div className="mt-4 p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg">
                     <div className="font-semibold text-orange-800 text-lg mb-2">
@@ -418,10 +499,19 @@ export default function QRScannerPage() {
                       {result.hoursLate > 1 ? "s" : ""}
                     </p>
                     
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg mb-3">
+                      <p className="text-sm text-red-800 font-semibold">
+                        🚫 Checkout Blocked
+                      </p>
+                      <p className="text-xs text-red-600 mt-1">
+                        Fine must be paid before vehicle can exit
+                      </p>
+                    </div>
+                    
                     {!finePaid ? (
                       <>
                         <p className="text-xs text-orange-600 mb-3">
-                          Please pay the fine to complete check-out
+                          Click below to process payment and complete checkout
                         </p>
                         <button
                           onClick={handlePayFine}
@@ -439,7 +529,7 @@ export default function QRScannerPage() {
                           ) : (
                             <>
                               <CreditCard size={20} />
-                              Pay Fine Now
+                              Pay Fine & Complete Checkout
                             </>
                           )}
                         </button>
@@ -451,12 +541,70 @@ export default function QRScannerPage() {
                           Payment Successful!
                         </div>
                         <p className="text-xs text-green-600 mt-1">
-                          You may now exit. Thank you!
+                          Checkout completed. You may now exit. Thank you!
                         </p>
                       </div>
                     )}
                   </div>
                 )}
+
+              {/* Fine Alert (Valid checkout with fine) */}
+              {result.valid &&
+                result.action !== "fine-payment-required" &&
+                result.requiresFinePayment &&
+                result.fine > 0 && (
+                <div className="mt-4 p-4 bg-orange-50 border-l-4 border-orange-500 rounded-lg">
+                  <div className="font-semibold text-orange-800 text-lg mb-2">
+                    ⚠️ Overstay Fine
+                  </div>
+                  <div className="flex items-center gap-2 text-3xl font-bold text-orange-600 mb-2">
+                    <IndianRupee size={28} />
+                    {result.fine}
+                  </div>
+                  <p className="text-sm text-orange-700 mb-1">
+                    You overstayed by {result.hoursLate} hour
+                    {result.hoursLate > 1 ? "s" : ""}
+                  </p>
+                  
+                  {!finePaid ? (
+                    <>
+                      <p className="text-xs text-orange-600 mb-3">
+                        Please pay the fine to complete check-out
+                      </p>
+                      <button
+                        onClick={handlePayFine}
+                        disabled={
+                          payingFine ||
+                          !(activeLocationId || result.qrData?.locationId)
+                        }
+                        className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                      >
+                        {payingFine ? (
+                          <>
+                            <Loader2 className="animate-spin" size={20} />
+                            Processing Payment...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard size={20} />
+                            Pay Fine Now
+                          </>
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-700 font-semibold">
+                        <CheckCircle size={20} />
+                        Payment Successful!
+                      </div>
+                      <p className="text-xs text-green-600 mt-1">
+                        You may now exit. Thank you!
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Success (Check-out, no fine) */}
               {result.valid &&

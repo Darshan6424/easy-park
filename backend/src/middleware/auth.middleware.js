@@ -28,3 +28,24 @@ export const protectRoute = async (req, res, next) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
+
+// Block owners from booking parking spots
+export const blockOwnerBooking = async (req, res, next) => {
+    if (req.user.role === "OWNER") {
+        return res.status(403).json({
+            message: "Owners cannot book parking spots. This feature is for users only.",
+            error: "OWNER_BOOKING_FORBIDDEN"
+        });
+    }
+    next();
+};
+
+// Validate user is an owner
+export const requireOwnerRole = async (req, res, next) => {
+    if (req.user.role !== "OWNER" && req.user.role !== "ADMIN") {
+        return res.status(403).json({
+            message: "Access denied. Owner role required.",
+        });
+    }
+    next();
+};

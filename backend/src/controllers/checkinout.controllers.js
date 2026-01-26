@@ -5,6 +5,7 @@ import {
     autoExpireBookingsService,
     calculateRevenueService,
     getBookingsWithFinesService,
+    payFineService,
     payFineAndCheckoutService,
 } from "../services/checkinout.services.js";
 
@@ -154,29 +155,67 @@ export async function scanBooking(req, res) {
                 },
             });
         } else if (canCheckOut) {
-            // Check-out
-            const checkOutResult = await checkOutBookingService(id, {
-                locationId,
-                user: req.user,
-            });
+            // Check if booking is expired and requires fine payment
+            const { booking } = statusResult;
+            
+            if (booking.status === "expired" && !booking.finePaid && booking.fine > 0) {
+                // Expired booking with unpaid fine - block checkout
+                return res.status(400).json({
+                    success: false,
+                    action: "fine-payment-required",
+                    message: "Fine pending. User must pay fine before checkout.",
+                    data: {
+                        booking: booking,
+                        fine: booking.fine,
+                        minutesLate: statusResult.minutesLate,
+                        hoursLate: statusResult.hoursLate,
+                        requiresFinePayment: true,
+                    },
+                });
+            } else if (booking.status === "expired" && booking.finePaid) {
+                // Fine paid, complete checkout
+                const checkoutResult = await payFineAndCheckoutService(id, {
+                    locationId,
+                    user: req.user,
+                });
 
-            const action = checkOutResult.requiresFinePayment
-                ? "fine-payment"
-                : "check-out";
+                return res.status(200).json({
+                    success: true,
+                    action: "check-out",
+                    message: checkoutResult.message,
+                    data: {
+                        booking: checkoutResult.booking,
+                        fine: checkoutResult.fine,
+                        minutesLate: checkoutResult.minutesLate,
+                        hoursLate: checkoutResult.hoursLate,
+                        requiresFinePayment: false,
+                    },
+                });
+            } else {
+                // Normal check-out
+                const checkOutResult = await checkOutBookingService(id, {
+                    locationId,
+                    user: req.user,
+                });
 
-            return res.status(200).json({
-                success: true,
-                action,
-                message: checkOutResult.message,
-                data: {
-                    booking: checkOutResult.booking,
-                    fine: checkOutResult.fine,
-                    minutesLate: checkOutResult.minutesLate,
-                    hoursLate: checkOutResult.hoursLate,
-                    requiresFinePayment:
-                        checkOutResult.requiresFinePayment,
-                },
-            });
+                const action = checkOutResult.requiresFinePayment
+                    ? "fine-payment-required"
+                    : "check-out";
+
+                return res.status(checkOutResult.requiresFinePayment ? 400 : 200).json({
+                    success: !checkOutResult.requiresFinePayment,
+                    action,
+                    message: checkOutResult.message,
+                    data: {
+                        booking: checkOutResult.booking,
+                        fine: checkOutResult.fine,
+                        minutesLate: checkOutResult.minutesLate,
+                        hoursLate: checkOutResult.hoursLate,
+                        requiresFinePayment:
+                            checkOutResult.requiresFinePayment,
+                    },
+                });
+            }
         } else {
             return res.status(400).json({
                 success: false,
@@ -211,7 +250,34 @@ export async function autoExpireBookings(req, res) {
     }
 }
 
-// Pay fine then complete checkout
+// Pay fine (user side) - marks finePaid = true
+export async function payFine(req, res) {
+    try {
+        const { id } = req.params;
+        const { locationId } = req.body || {};
+
+        const result = await payFineService(id, {
+            locationId,
+            user: req.user,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: result.message,
+            data: {
+                booking: result.booking,
+                fine: result.fine,
+            },
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+}
+
+// Pay fine and checkout (guard side) - completes checkout after fine is paid
 export async function payFineAndCheckout(req, res) {
     try {
         const { id } = req.params;
@@ -224,7 +290,7 @@ export async function payFineAndCheckout(req, res) {
 
         return res.status(200).json({
             success: true,
-            message: "Fine paid and checkout completed",
+            message: result.message,
             data: {
                 booking: result.booking,
                 fine: result.fine,

@@ -13,7 +13,6 @@ import SearchMap from "./pages/searchMap.jsx";
 import BookingPage from "./pages/booking.jsx";
 import Profile from "./pages/profile.jsx";
 import Locations from "./pages/location.jsx";
-import AddLocation from "./pages/addLocation.jsx";
 import LocationDetail from "./pages/locationDetails.jsx";
 import Ticket from "./pages/ticket.jsx";
 import QRScannerPage from "./pages/QRScanner.jsx";
@@ -22,6 +21,9 @@ import About from "./pages/about.jsx";
 import FAQ from "./pages/faq.jsx";
 import RegisterOwner from "./pages/register-owner.jsx";
 import OwnerMapPage from "./pages/ownerMap.jsx";
+import OwnerDashboard from "./pages/ownerDashboard.jsx";
+import OwnerLocations from "./pages/ownerLocations.jsx";
+import OwnerEditLocation from "./pages/ownerEditLocation.jsx";
 
 function App() {
   return (
@@ -122,14 +124,6 @@ function App() {
             }
           />
           <Route
-            path="/add-location"
-            element={
-              <Layout>
-                <AddLocation />
-              </Layout>
-            }
-          />
-          <Route
             path="/scan"
             element={
               <Layout>
@@ -166,6 +160,30 @@ function App() {
             element={
               <Layout>
                 <RegisterOwner />
+              </Layout>
+            }
+          />
+          <Route
+            path="/owner-dashboard"
+            element={
+              <Layout>
+                <OwnerDashboard />
+              </Layout>
+            }
+          />
+          <Route
+            path="/owner-locations"
+            element={
+              <Layout>
+                <OwnerLocations />
+              </Layout>
+            }
+          />
+          <Route
+            path="/owner/edit-location/:locationId"
+            element={
+              <Layout>
+                <OwnerEditLocation />
               </Layout>
             }
           />

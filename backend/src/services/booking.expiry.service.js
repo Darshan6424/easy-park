@@ -17,7 +17,9 @@ export async function checkAndUpdateExpiredBookings() {
             isCheckedOut: false,
         });
 
-        console.log(`Found ${expiredBookings.length} expired bookings`);
+        if (expiredBookings.length > 0) {
+            console.log(`Found ${expiredBookings.length} expired bookings`);
+        }
 
         // Update expired bookings - DO NOT free spots (they stay occupied until checkout)
         const expiredPromises = expiredBookings.map(async (booking) => {
@@ -55,7 +57,9 @@ export async function checkAndUpdateExpiredBookings() {
             status: "pending",
         });
 
-        console.log(`Found ${pendingBookings.length} pending bookings to check`);
+        if (pendingBookings.length > 0) {
+            console.log(`Checking ${pendingBookings.length} pending bookings for grace expiry`);
+        }
 
         const graceExpiredPromises = pendingBookings
             .filter((booking) => {
@@ -82,9 +86,11 @@ export async function checkAndUpdateExpiredBookings() {
             Promise.all(graceExpiredPromises),
         ]);
 
-        console.log(
-            `Processed ${expiredIds.length} expired bookings and ${graceExpiredIds.length} grace-expired bookings`,
-        );
+        if (expiredIds.length > 0 || graceExpiredIds.length > 0) {
+            console.log(
+                `✓ Updated ${expiredIds.length} expired bookings and ${graceExpiredIds.length} grace-expired bookings`,
+            );
+        }
 
         return {
             success: true,
@@ -197,11 +203,11 @@ export function scheduleExpiryChecks(intervalMinutes = 5) {
 
     // Then run periodically
     setInterval(async () => {
-        console.log("Running scheduled expiry check...");
         try {
             const result = await checkAndUpdateExpiredBookings();
-            if (result.count > 0) {
-                console.log(`Updated ${result.count} expired bookings`);
+            // Only log if bookings were updated
+            if (result.totalCount > 0) {
+                console.log(`[Expiry Check] Updated ${result.totalCount} bookings`);
             }
         } catch (error) {
             console.error("Scheduled expiry check failed:", error);

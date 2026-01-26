@@ -264,11 +264,11 @@ export default function Locations() {
             {/* Add Location Button - Only for OWNER */}
             {loggedIn && user?.role === "OWNER" && (
               <button
-                onClick={() => navigate("/add-location")}
+                onClick={() => navigate("/owner-map")}
                 className="bg-primary text-white px-4 md:px-6 py-2 md:py-3 rounded-lg font-medium hover:opacity-90 transition-opacity flex items-center gap-2"
               >
                 <Plus size={20} />
-                <span className="hidden md:inline">Add Location</span>
+                <span className="hidden md:inline">Manage Locations</span>
               </button>
             )}
           </div>

@@ -19,6 +19,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Header from "../components/layout/header.jsx";
+import { getUser } from "../utils/auth.js";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -92,6 +93,8 @@ export default function SearchMap() {
   const [vehicleType, setVehicleType] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const user = getUser();
+  const isOwner = user?.role === "OWNER";
 
   useEffect(() => {
     const lat = parseFloat(searchParams.get("lat"));

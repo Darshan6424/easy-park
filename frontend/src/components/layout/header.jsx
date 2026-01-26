@@ -68,12 +68,20 @@ export default function Header() {
               >
                 Home
               </Link>
-              {loggedIn && (
+              {loggedIn && user?.role !== "OWNER" && (
                 <Link
                   to="/my-bookings"
                   className="text-text hover:text-primary transition-colors"
                 >
                   My Bookings
+                </Link>
+              )}
+              {user?.role === "OWNER" && (
+                <Link
+                  to="/owner-dashboard"
+                  className="text-text hover:text-primary transition-colors"
+                >
+                  Dashboard
                 </Link>
               )}
               <Link
@@ -96,7 +104,7 @@ export default function Header() {
                   to="/owner-map"
                   className="text-text hover:text-primary transition-colors"
                 >
-                  Manage Map
+                  Manage Locations
                 </Link>
               )}
               <Link
@@ -192,13 +200,22 @@ export default function Header() {
               >
                 Home
               </Link>
-              {loggedIn && (
+              {loggedIn && user?.role !== "OWNER" && (
                 <Link
                   to="/my-bookings"
                   className="text-text hover:text-primary transition-colors py-2"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   My Bookings
+                </Link>
+              )}
+              {user?.role === "OWNER" && (
+                <Link
+                  to="/owner-dashboard"
+                  className="text-text hover:text-primary transition-colors py-2"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Dashboard
                 </Link>
               )}
               <Link
@@ -224,7 +241,7 @@ export default function Header() {
                   className="text-text hover:text-primary transition-colors py-2"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Manage Map
+                  Manage Locations
                 </Link>
               )}
               <Link

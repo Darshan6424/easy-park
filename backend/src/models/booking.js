@@ -116,6 +116,11 @@ const bookingSchema = mongoose.Schema(
             required: false,
             default: false,
         },
+        attemptedCheckout: {
+            type: Boolean,
+            required: false,
+            default: false,
+        },
     },
     {
         timestamps: true, // Adds createdAt and updatedAt automatically

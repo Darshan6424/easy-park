@@ -9,6 +9,7 @@ import bookingRoutes from "./routes/book.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import ParkingLocationRoutes from "./routes/parkingLocation.routes.js";
+import ownerRoutes from "./routes/owner.routes.js";
 import { dbConnection } from "./lib/mongoDB.js";
 import { scheduleExpiryChecks } from "./services/booking.expiry.service.js";
 
@@ -33,15 +34,16 @@ app.use("/api/booking", bookingRoutes);
 app.use("/api/location", ParkingLocationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/owner", ownerRoutes);
 
 // Connect to database and start server
 dbConnection()
     .then(() => {
         console.log("Database connected successfully");
 
-        // Start the booking expiry checker (runs every 5 minutes)
-        scheduleExpiryChecks(5);
-        console.log("Booking expiry scheduler started");
+        // Start the booking expiry checker (runs every 10 seconds)
+        scheduleExpiryChecks(0.1667); // 10 seconds = 0.1667 minutes
+        console.log("Booking expiry scheduler started (10s interval)");
 
         app.listen(PORT, () => {
             console.log(`Server is listening to the port ${PORT}`);

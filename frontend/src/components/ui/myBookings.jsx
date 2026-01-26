@@ -28,10 +28,20 @@ export default function MyBookings() {
 
   useEffect(() => {
     fetchBookings();
+    
+    // Auto-refresh bookings every 10 seconds to sync status changes
+    const refreshInterval = setInterval(() => {
+      fetchBookings();
+    }, 10000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const fetchBookings = async () => {
-    setLoading(true);
+    // Only show loading on initial fetch, not on auto-refresh
+    if (bookings.length === 0) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const response = await fetch(
@@ -204,7 +214,8 @@ const calculateDuration = (startTime, endTime, booking) => {
   };
 
   const getGracePeriodStatus = (booking) => {
-    if (booking.status?.toLowerCase() !== "active") return null;
+    // Only show grace period status for PENDING bookings (not yet checked in)
+    if (booking.status?.toLowerCase() !== "pending") return null;
 
     const now = new Date();
     const startTime = new Date(booking.startTime);
@@ -228,8 +239,8 @@ const calculateDuration = (startTime, endTime, booking) => {
       return null;
     }
 
-    // Within grace period
-    if (minutesDiff > 0 && minutesDiff <= GRACE_PERIOD_MINUTES) {
+    // Within grace period (after start time)
+    if (minutesDiff >= 0 && minutesDiff <= GRACE_PERIOD_MINUTES) {
       return {
         type: "grace",
         message: `Grace period: ${GRACE_PERIOD_MINUTES - minutesDiff} min left to check in`,
@@ -239,11 +250,11 @@ const calculateDuration = (startTime, endTime, booking) => {
       };
     }
 
-    // Beyond grace period (late)
+    // Beyond grace period (should be marked invalid by backend)
     if (minutesDiff > GRACE_PERIOD_MINUTES) {
       return {
-        type: "late",
-        message: `Started ${minutesDiff} min ago - time is running`,
+        type: "expired",
+        message: `Grace period expired - booking may be invalid`,
         color: "text-red-600",
         bgColor: "bg-red-50",
         borderColor: "border-red-300",
@@ -547,15 +558,34 @@ const calculateDuration = (startTime, endTime, booking) => {
                         </div>
                       </div>
 
-                      {booking.fine > 0 && !booking.finePaid && (
-                        <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-3">
-                          <p className="text-orange-700 font-semibold text-sm flex items-center gap-2">
-                            <AlertCircle size={16} />
-                            Fine due: रु {booking.fine}
-                          </p>
-                          <p className="text-xs text-orange-600 mt-1">
-                            Scan the ticket QR at the gate to pay and exit.
-                          </p>
+                      {/* Fine Alert */}
+                      {statusLower === "expired" && booking.fine > 0 && (
+                        <div className={`mt-4 rounded-lg p-3 border ${
+                          booking.finePaid 
+                            ? "bg-green-50 border-green-200" 
+                            : "bg-orange-50 border-orange-200"
+                        }`}>
+                          {booking.finePaid ? (
+                            <>
+                              <p className="text-green-700 font-semibold text-sm flex items-center gap-2">
+                                <CheckCircle size={16} />
+                                Fine Paid: ₹{booking.fine}
+                              </p>
+                              <p className="text-xs text-green-600 mt-1">
+                                You may now checkout at the gate.
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-orange-700 font-semibold text-sm flex items-center gap-2">
+                                <AlertCircle size={16} />
+                                Fine Due: ₹{booking.fine}
+                              </p>
+                              <p className="text-xs text-orange-600 mt-1">
+                                ⚠️ Checkout blocked. Click "View / Pay Fine" to pay or pay at gate.
+                              </p>
+                            </>
+                          )}
                         </div>
                       )}
 

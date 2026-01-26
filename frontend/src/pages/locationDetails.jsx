@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { getUser } from "../utils/auth.js";
 import {
   MapPin,
   Car,
@@ -22,6 +23,8 @@ export default function LocationDetail() {
   const [error, setError] = useState("");
   const [selectedType, setSelectedType] = useState(vehicleType || "car");
   const [selectedSpot, setSelectedSpot] = useState(null);
+  const user = getUser();
+  const isOwner = user?.role === "OWNER";
 
   useEffect(() => {
     fetchLocation();
@@ -183,7 +186,7 @@ export default function LocationDetail() {
               </div>
             </div>
 
-            {/* Vehicle Type Selector */}
+            {/* Vehicle Type Selector - Available for everyone */}
             <div className="bg-surface border-2 border-border rounded-xl p-5 lg:p-6 shadow-sm">
               <h3 className="text-base lg:text-lg font-bold text-text mb-4">
                 Select Vehicle Type

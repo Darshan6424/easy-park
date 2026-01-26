@@ -15,52 +15,87 @@ import {
   AlertCircle,
   Timer,
   CreditCard,
+  Bell,
+  BellOff,
 } from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import generateQr from "../lib/qrCodeGenerator";
+import { useBookingNotifications } from "../hooks/useBookingNotifications";
+import { 
+  requestNotificationPermission, 
+  areNotificationsEnabled 
+} from "../utils/notifications";
+import PaymentModal from "../components/ui/paymentModal";
 
 export default function BookingTicket() {
   const { bookingId } = useParams();
   const navigate = useNavigate();
   const qrRef = useRef(null);
+  const ticketRef = useRef(null);
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [qrCode, setQrCode] = useState(null);
-  const [payingFine, setPayingFine] = useState(false);
-  const [fineError, setFineError] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
+
+  // Setup notification system for this booking
+  useBookingNotifications(booking);
+
+  // Update current time every second for dynamic display
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Check notification permission status
+  useEffect(() => {
+    setNotificationsEnabled(areNotificationsEnabled());
+  }, []);
 
   useEffect(() => {
     fetchBooking();
-  }, [bookingId]);
+    
+    // Reduced auto-refresh: Only for critical status changes
+    const refreshInterval = setInterval(() => {
+      if (!booking) return;
+      
+      // Only auto-refresh for active statuses
+      if (booking.status === "pending" || booking.status === "active") {
+        fetchBooking();
+      }
+    }, 30000); // Refresh every 30 seconds (reduced from 5s to prevent flicker)
+    
+    return () => clearInterval(refreshInterval);
+  }, [booking?.status, bookingId]);
 
+  // Generate QR code once when booking is loaded
   useEffect(() => {
     if (booking && qrRef.current && !qrCode) {
-      const ticketData = JSON.stringify({
-        id: booking._id,
-        spot: booking.parkingSpot?.spotNumber,
-        location: getLocationName(),
-        locationId:
-          booking?.location?._id ||
-          booking?.location ||
-          booking?.parkingSpot?.parkingLocation?._id,
-        parkingSpotId: booking?.parkingSpot?._id,
-        start: booking.startTime,
-        end: booking.endTime,
-        type: booking.type,
-        cost: calculateTotalCost(),
-        status: booking.status,
-        fine: booking.fine,
-      });
-      console.log(ticketData);
-      const qr = generateQr(ticketData);
+      // Simple QR data - just the booking ID for demo
+      const qrData = booking._id;
+      
+      const qr = generateQr(qrData);
       qr.append(qrRef.current);
       setQrCode(qr);
     }
-  }, [booking, qrCode]);
+  }, [booking?._id, qrCode]); // Only depend on booking ID, not entire booking object
+
 
   const fetchBooking = async () => {
-    setLoading(true);
+    // Only show loading on initial fetch, not on auto-refresh
+    const isInitialFetch = !booking;
+    if (isInitialFetch) {
+      setLoading(true);
+    }
+    
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/api/booking/${bookingId}`,
@@ -72,19 +107,31 @@ export default function BookingTicket() {
       );
 
       const result = await response.json();
-      console.log("Booking Response:", result);
 
       if (response.ok) {
         const bookingData = result.data || result;
-        setBooking(bookingData);
+        
+        // Only update state if critical data has changed (prevents flicker)
+        if (!booking || 
+            booking.status !== bookingData.status || 
+            booking.fine !== bookingData.fine ||
+            booking.finePaid !== bookingData.finePaid ||
+            booking.attemptedCheckout !== bookingData.attemptedCheckout) {
+          setBooking(bookingData);
+        }
       } else {
         setError(result.message || "Failed to fetch booking");
       }
     } catch (err) {
       console.error("Fetch error:", err);
-      setError("Network error. Please try again.");
+      if (isInitialFetch) {
+        setError("Network error. Please try again.");
+      }
     } finally {
-      setLoading(false);
+      // Only clear loading if this was an initial fetch
+      if (isInitialFetch) {
+        setLoading(false);
+      }
     }
   };
 
@@ -149,7 +196,28 @@ export default function BookingTicket() {
     // For pending, show time until grace period expires
     if (booking.status === "pending") {
       const now = new Date();
-      const graceExpiry = new Date(booking.graceExpiryTime);
+      const startTime = new Date(booking.startTime);
+      const GRACE_PERIOD_MINUTES = 15;
+      
+      // Grace period ends 15 minutes after start time
+      const graceExpiry = new Date(startTime.getTime() + GRACE_PERIOD_MINUTES * 60 * 1000);
+      
+      // If we're before the start time, show time until start
+      if (now < startTime) {
+        const diff = startTime - now;
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        
+        if (hours > 0) {
+          return `Starts in ${hours}h ${minutes}m`;
+        }
+        if (minutes > 0) {
+          return `Starts in ${minutes}m`;
+        }
+        return "Starting soon";
+      }
+      
+      // We're past start time, show grace period countdown
       const diff = graceExpiry - now;
 
       if (diff <= 0) return "Grace Expired";
@@ -190,56 +258,65 @@ export default function BookingTicket() {
     }
   };
 
-  const handleDownloadPDF = () => {
-    window.print();
+  const handlePayFine = () => {
+    if (!booking?.attemptedCheckout) {
+      alert("You must scan QR at the gate first before paying fine online. This prevents paying fines remotely.");
+      return;
+    }
+    setShowPaymentModal(true);
   };
 
-  const handlePayFine = async () => {
-    if (!booking) return;
+  const handlePaymentSuccess = (updatedBooking) => {
+    setBooking(updatedBooking.booking || updatedBooking);
+    setShowPaymentModal(false);
+    // Refresh booking to get latest data
+    setTimeout(() => fetchBooking(), 1000);
+  };
 
-    setPayingFine(true);
-    setFineError("");
-
+  const handleDownloadPDF = async () => {
+    if (!ticketRef.current || isDownloadingPDF) return;
+    
+    setIsDownloadingPDF(true);
+    
     try {
-      const locationId =
-        booking?.location?._id ||
-        booking?.location ||
-        booking?.parkingSpot?.parkingLocation?._id;
-
-      if (!locationId) {
-        throw new Error("Location ID not found");
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/booking/${bookingId}/pay-fine`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ locationId }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (response.ok) {
-        // Update booking state to reflect fine payment
-        setBooking({
-          ...booking,
-          finePaid: true,
-          fine: 0,
-        });
-        alert("Fine paid successfully!");
-      } else {
-        setFineError(result.message || "Failed to pay fine");
-        alert(result.message || "Failed to pay fine");
-      }
-    } catch (err) {
-      console.error("Pay fine error:", err);
-      setFineError("Network error. Please try again.");
-      alert("Network error. Please try again.");
+      // Capture the ticket element as canvas
+      const canvas = await html2canvas(ticketRef.current, {
+        scale: 2, // Higher quality
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+      
+      // Calculate PDF dimensions (A4 size)
+      const imgWidth = 210; // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      // Create PDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      // Generate filename with booking details
+      const filename = `parking-ticket-${booking?.parkingSpot?.spotNumber || 'ticket'}-${new Date().getTime()}.pdf`;
+      
+      // Download PDF
+      pdf.save(filename);
+    } catch (error) {
+      console.error("PDF generation error:", error);
+      alert("Unable to generate PDF. Please try again.");
     } finally {
-      setPayingFine(false);
+      setIsDownloadingPDF(false);
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    const granted = await requestNotificationPermission();
+    setNotificationsEnabled(granted);
+    if (granted) {
+      alert("Notifications enabled! You'll receive updates about your booking.");
+    } else {
+      alert("Notification permission denied. You can enable it from browser settings.");
     }
   };
 
@@ -298,10 +375,42 @@ export default function BookingTicket() {
             <ChevronLeft size={20} />
             Back to Bookings
           </button>
+
+          {/* Notification Status */}
+          {(isPending || isActive) && !notificationsEnabled && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <div className="flex items-start gap-3">
+                <BellOff className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-blue-900 mb-1">
+                    Enable Notifications
+                  </p>
+                  <p className="text-xs text-blue-700 mb-2">
+                    Get notified when your booking starts, grace period is ending, and more.
+                  </p>
+                  <button
+                    onClick={handleEnableNotifications}
+                    className="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    Enable Notifications
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(isPending || isActive) && notificationsEnabled && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center gap-2 text-green-700 text-sm">
+                <Bell size={16} />
+                <span className="font-medium">Notifications enabled - You'll receive timely updates</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Ticket Card - Compact Size */}
-        <div className="bg-white border-2 border-border rounded-xl overflow-hidden shadow-xl ticket-container">
+        <div ref={ticketRef} className="bg-white border-2 border-border rounded-xl overflow-hidden shadow-xl ticket-container">
           {/* Ticket Header - Compact */}
           <div className="bg-gradient-to-r from-primary via-accent to-primary p-4 text-white relative overflow-hidden">
             <div className="absolute inset-0 opacity-10">
@@ -364,9 +473,39 @@ export default function BookingTicket() {
 
               {isPending && (
                 <div className="mt-3 bg-white/20 border border-white/40 rounded-lg px-3 py-2 text-xs text-white">
-                  <strong>Check in required!</strong> Scan this QR at the
-                  parking location within {timeRemaining || "15 minutes"} to
-                  activate your booking.
+                  {(() => {
+                    const now = new Date();
+                    const startTime = new Date(booking.startTime);
+                    const GRACE_PERIOD_MINUTES = 15;
+                    const graceExpiry = new Date(startTime.getTime() + GRACE_PERIOD_MINUTES * 60 * 1000);
+                    
+                    if (now < startTime) {
+                      // Future booking
+                      return (
+                        <>
+                          <strong>Future Booking:</strong> Your booking starts at{" "}
+                          {formatTime(booking.startTime)}. You can check in up to 15 minutes before start time.
+                        </>
+                      );
+                    } else if (now >= startTime && now <= graceExpiry) {
+                      // In grace period
+                      return (
+                        <>
+                          <strong>Check in required!</strong> Scan this QR at the
+                          parking location within {timeRemaining || "15 minutes"} to
+                          activate your booking.
+                        </>
+                      );
+                    } else {
+                      // Grace expired
+                      return (
+                        <>
+                          <strong>Grace period expired!</strong> Your booking may be
+                          marked as invalid. Please contact support.
+                        </>
+                      );
+                    }
+                  })()}
                 </div>
               )}
               {isInvalid && (
@@ -376,14 +515,39 @@ export default function BookingTicket() {
                 </div>
               )}
               {hasExpired && !isCheckedOut && (
-                <div className="mt-3 bg-white/20 border border-white/40 rounded-lg px-3 py-2 text-xs text-white">
-                  Booking time ended. Scan this QR at the gate to pay any fine
-                  and exit.
+                <div className="mt-3 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs">
+                  <div className="font-semibold text-orange-800 mb-1">
+                    ⚠️ Booking Expired
+                  </div>
+                  {booking.fine > 0 && !booking.finePaid ? (
+                    <div className="text-orange-700">
+                      <p className="mb-1">
+                        <strong>Fine Amount:</strong> ₹{booking.fine}
+                      </p>
+                      {booking.attemptedCheckout ? (
+                        <p className="text-xs">
+                          Fine detected! Use "Pay Fine" button below to pay online, or pay at exit gate.
+                        </p>
+                      ) : (
+                        <p className="text-xs bg-yellow-100 border border-yellow-300 rounded p-2 mt-1">
+                          <strong>⚠️ Scan QR at gate first:</strong> You must attempt checkout at the exit gate before you can pay the fine online. This prevents remote fine payments.
+                        </p>
+                      )}
+                    </div>
+                  ) : booking.finePaid ? (
+                    <p className="text-green-700 font-semibold">
+                      ✓ Fine paid. You may checkout at the gate.
+                    </p>
+                  ) : (
+                    <p className="text-orange-700">
+                      Booking time ended. Scan QR at gate to checkout.
+                    </p>
+                  )}
                 </div>
               )}
-              {booking.fine > 0 && !booking.finePaid && (
-                <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
-                  Fine due: रु {booking.fine}. Payment required before exit.
+              {booking.fine > 0 && !booking.finePaid && hasExpired && (
+                <div className="mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-semibold">
+                  ⚠️ Checkout blocked until fine is paid: ₹{booking.fine}
                 </div>
               )}
             </div>
@@ -574,24 +738,20 @@ export default function BookingTicket() {
 
               {/* Action Buttons */}
               <div className="flex gap-2 print:hidden">
-                {hasExpired && booking.fine > 0 && !booking.finePaid && (
+                {hasExpired && booking.fine > 0 && !booking.finePaid && booking.attemptedCheckout && (
                   <button
                     onClick={handlePayFine}
-                    disabled={payingFine}
-                    className="px-4 py-1.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:shadow-lg transition-all font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
+                    className="px-4 py-1.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:shadow-lg transition-all font-bold text-xs flex items-center gap-1.5"
                   >
-                    {payingFine ? (
-                      <>
-                        <Loader2 size={14} className="animate-spin" />
-                        Paying...
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard size={14} strokeWidth={2.5} />
-                        Pay Fine ₹{booking.fine}
-                      </>
-                    )}
+                    <CreditCard size={14} strokeWidth={2.5} />
+                    Pay Fine ₹{booking.fine}
                   </button>
+                )}
+                {hasExpired && booking.finePaid && (
+                  <div className="px-4 py-1.5 bg-green-100 text-green-700 rounded-lg font-bold text-xs flex items-center gap-1.5">
+                    <CheckCircle size={14} strokeWidth={2.5} />
+                    Fine Paid
+                  </div>
                 )}
                 <button
                   onClick={handleDownload}
@@ -602,9 +762,20 @@ export default function BookingTicket() {
                 </button>
                 <button
                   onClick={handleDownloadPDF}
-                  className="px-3 py-1.5 bg-gradient-to-r from-primary to-accent text-white rounded-lg hover:shadow-lg transition-all font-bold text-xs"
+                  disabled={isDownloadingPDF}
+                  className="px-3 py-1.5 bg-gradient-to-r from-primary to-accent text-white rounded-lg hover:shadow-lg transition-all font-bold text-xs flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Download PDF
+                  {isDownloadingPDF ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" strokeWidth={2.5} />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} strokeWidth={2.5} />
+                      Download PDF
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -649,58 +820,16 @@ export default function BookingTicket() {
           width: 220px !important;
           height: 220px !important;
         }
-
-        @media print {
-          @page {
-            size: A4;
-            margin: 12mm;
-          }
-          
-          html, body {
-            height: 100%;
-            overflow: hidden;
-          }
-          
-          * {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-          
-          body * {
-            visibility: hidden;
-          }
-          
-          .ticket-container,
-          .ticket-container * {
-            visibility: visible;
-          }
-          
-          .ticket-container {
-            position: fixed !important;
-            left: 50%;
-            top: 0;
-            transform: translateX(-50%) scale(0.92);
-            transform-origin: top center;
-            max-width: 700px;
-            width: 100%;
-            box-shadow: none !important;
-            page-break-inside: avoid;
-            page-break-after: avoid;
-            page-break-before: avoid;
-          }
-          
-          .ticket-container::after {
-            content: '';
-            display: block;
-            page-break-after: always;
-          }
-          
-          .print\\:hidden {
-            display: none !important;
-            visibility: hidden !important;
-          }
-        }
       `}</style>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <PaymentModal
+          booking={booking}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   );
 }

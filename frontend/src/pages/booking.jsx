@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { getUser } from "../utils/auth.js";
 import {
   Car,
   Bike,
@@ -16,10 +17,16 @@ import {
   TimerReset,
   CreditCard,
 } from "lucide-react";
+import { 
+  notifyBookingCreated, 
+  requestNotificationPermission 
+} from "../utils/notifications";
 
 export default function BookingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const user = getUser();
+  const isOwner = user?.role === "OWNER";
 
   // Get pre-filled data from URL params
   const locationId = searchParams.get("locationId");
@@ -163,9 +170,19 @@ export default function BookingPage() {
         localStorage.removeItem("bookings_cache");
         localStorage.removeItem("bookings_timestamp");
 
-        // Success! Navigate to my bookings
-        alert("Payment Successful! Booking confirmed! 🎉");
-        navigate("/my-bookings");
+        // Request notification permission and send booking confirmation
+        const hasPermission = await requestNotificationPermission();
+        if (hasPermission && result.data) {
+          notifyBookingCreated(result.data);
+        }
+
+        // Success! Navigate to booking ticket
+        const bookingId = result.data?._id;
+        if (bookingId) {
+          navigate(`/booking/${bookingId}`);
+        } else {
+          navigate("/my-bookings");
+        }
       } else {
         setError(result.message || "Booking failed");
       }

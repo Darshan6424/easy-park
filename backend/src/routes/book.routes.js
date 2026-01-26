@@ -21,6 +21,7 @@ import {
     autoExpireBookings,
     getUserRevenue,
     getBookingsWithFines,
+    payFine,
     payFineAndCheckout,
 } from "../controllers/checkinout.controllers.js";
 
@@ -47,7 +48,7 @@ router.get("/fines", protectRoute, getBookingsWithFines);
 // ============================================
 // REGULAR BOOKING ROUTES
 // ============================================
-// Create new booking
+// Create new booking - NOW ALLOWS OWNERS
 router.post("/new", protectRoute, bookSpot);
 
 // Get all user bookings
@@ -60,7 +61,8 @@ router.get("/", protectRoute, getBooking);
 router.post("/:id/check-in", protectRoute, checkInBooking);
 router.post("/:id/check-out", protectRoute, checkOutBooking);
 router.post("/:id/scan", protectRoute, scanBooking); // Smart endpoint
-router.post("/:id/pay-fine", protectRoute, payFineAndCheckout);
+router.post("/:id/pay-fine", protectRoute, payFine); // User pays fine
+router.post("/:id/checkout-after-fine", protectRoute, payFineAndCheckout); // Guard completes checkout
 
 // Get booking status (with validation flags)
 router.get("/:id/status", protectRoute, getBookingStatus);
