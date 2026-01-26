@@ -12,6 +12,7 @@ import ParkingLocationRoutes from "./routes/parkingLocation.routes.js";
 import ownerRoutes from "./routes/owner.routes.js";
 import { dbConnection } from "./lib/mongoDB.js";
 import { scheduleExpiryChecks } from "./services/booking.expiry.service.js";
+import { initializeMQTT, closeMQTT } from "./services/mqtt.service.js";
 
 dotenv.config();
 
@@ -41,6 +42,10 @@ dbConnection()
     .then(() => {
         console.log("Database connected successfully");
 
+        // Initialize MQTT connection
+        initializeMQTT();
+        console.log("MQTT service initialized");
+
         // Start the booking expiry checker (runs every 10 seconds)
         scheduleExpiryChecks(0.1667); // 10 seconds = 0.1667 minutes
         console.log("Booking expiry scheduler started (10s interval)");
@@ -59,6 +64,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 app.use(express.static(path.join(__dirname, "../../frontend/dist")));
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received. Closing MQTT connection...');
+    closeMQTT();
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    console.log('SIGINT received. Closing MQTT connection...');
+    closeMQTT();
+    process.exit(0);
+});
 
 // Catch-all route for SPA - must be AFTER all API routes
 app.get(/^\/(?!api).*/, (req, res) => {

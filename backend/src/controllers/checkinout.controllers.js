@@ -9,6 +9,13 @@ import {
     payFineAndCheckoutService,
 } from "../services/checkinout.services.js";
 
+import {
+    publishGateOpen1,
+    publishGateOpen2,
+    publishFinePending,
+    isMQTTConnected,
+} from "../services/mqtt.service.js";
+
 // Check-in controller
 export async function checkInBooking(req, res) {
     try {
@@ -19,6 +26,12 @@ export async function checkInBooking(req, res) {
             user: req.user,
         });
 
+        // Publish MQTT message to open entry gate
+        if (result.booking.status === 'active' && result.booking.isCheckedIn) {
+            const mqttResult = await publishGateOpen1(bookingId, result.booking);
+            console.log('[CheckIn] MQTT Gate 1 published:', mqttResult.published);
+        }
+
         return res.status(200).json({
             success: true,
             message: result.message,
@@ -26,6 +39,7 @@ export async function checkInBooking(req, res) {
                 booking: result.booking,
                 graceApplied: result.graceApplied,
                 minutesLate: result.minutesLate,
+                mqttPublished: isMQTTConnected(),
             },
         });
     } catch (error) {
@@ -47,6 +61,17 @@ export async function checkOutBooking(req, res) {
             user: req.user,
         });
 
+        // Publish MQTT message based on checkout status
+        if (result.requiresFinePayment) {
+            // User overstayed - fine pending, don't open exit gate
+            const mqttResult = await publishFinePending(bookingId, result.fine, result.booking);
+            console.log('[CheckOut] MQTT Fine Pending published:', mqttResult.published);
+        } else if (result.booking.status === 'completed' && result.booking.isCheckedOut) {
+            // No fine, checkout successful - open exit gate
+            const mqttResult = await publishGateOpen2(bookingId, result.booking);
+            console.log('[CheckOut] MQTT Gate 2 published:', mqttResult.published);
+        }
+
         return res.status(200).json({
             success: true,
             message: result.message,
@@ -55,6 +80,7 @@ export async function checkOutBooking(req, res) {
                 fine: result.fine,
                 minutesLate: result.minutesLate,
                 hoursLate: result.hoursLate,
+                mqttPublished: isMQTTConnected(),
             },
         });
     } catch (error) {

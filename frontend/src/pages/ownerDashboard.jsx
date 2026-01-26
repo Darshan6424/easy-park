@@ -8,11 +8,14 @@ import {
     AlertCircle,
     TrendingUp,
     Navigation,
+    Zap,
 } from "lucide-react";
 
 export default function OwnerDashboard() {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [testLoading, setTestLoading] = useState(false);
+    const [testMessage, setTestMessage] = useState("");
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -44,6 +47,40 @@ export default function OwnerDashboard() {
             console.error("Error fetching dashboard stats:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const testGate = async (gateNumber) => {
+        setTestLoading(true);
+        setTestMessage("");
+        try {
+            const endpoint = gateNumber === 1 ? "gate1" : "gate2";
+            const response = await fetch(
+                `${import.meta.env.VITE_API_BASE_URL}/api/owner/test/${endpoint}`,
+                {
+                    method: "POST",
+                    credentials: "include",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+
+            const data = await response.json();
+            
+            if (data.success || data.data?.published) {
+                setTestMessage(`✓ Gate ${gateNumber} command sent! ${data.message}`);
+            } else {
+                setTestMessage(`✗ Failed: ${data.message}`);
+            }
+
+            setTimeout(() => setTestMessage(""), 4000);
+        } catch (error) {
+            console.error("Error testing gate:", error);
+            setTestMessage(`✗ Error: ${error.message}`);
+            setTimeout(() => setTestMessage(""), 4000);
+        } finally {
+            setTestLoading(false);
         }
     };
 
@@ -237,7 +274,7 @@ export default function OwnerDashboard() {
                 </div>
 
                 {/* Quick Actions */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <button
                         onClick={() => navigate("/owner-locations")}
                         className="bg-surface border-2 border-border hover:border-primary text-text py-4 px-6 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
@@ -259,6 +296,53 @@ export default function OwnerDashboard() {
                         <Activity className="w-5 h-5" />
                         QR Scanner
                     </button>
+                </div>
+
+                {/* MQTT Test Section */}
+                <div className="bg-surface border-2 border-border rounded-lg p-6 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 className="text-xl font-bold text-text flex items-center gap-2">
+                                <Zap className="w-5 h-5 text-warning" />
+                                Gate Control Testing
+                            </h2>
+                            <p className="text-sm text-muted mt-1">
+                                Test MQTT gate controls (Entry/Exit)
+                            </p>
+                        </div>
+                    </div>
+
+                    {testMessage && (
+                        <div className={`p-3 rounded-lg mb-4 text-sm ${
+                            testMessage.startsWith("✓")
+                                ? "bg-success/20 text-success border border-success/30"
+                                : "bg-error/20 text-error border border-error/30"
+                        }`}>
+                            {testMessage}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button
+                            onClick={() => testGate(1)}
+                            disabled={testLoading}
+                            className="bg-primary hover:bg-primary/90 disabled:bg-primary/50 text-white py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Zap className="w-4 h-4" />
+                            {testLoading ? "Sending..." : "Test Gate 1 (Entry)"}
+                        </button>
+                        <button
+                            onClick={() => testGate(2)}
+                            disabled={testLoading}
+                            className="bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-white py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Zap className="w-4 h-4" />
+                            {testLoading ? "Sending..." : "Test Gate 2 (Exit)"}
+                        </button>
+                    </div>
+                    <p className="text-xs text-muted mt-3 text-center">
+                        Sends MQTT command to ESP32. Make sure device is connected.
+                    </p>
                 </div>
             </div>
         </div>
