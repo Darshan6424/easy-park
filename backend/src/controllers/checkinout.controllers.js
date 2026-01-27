@@ -16,6 +16,8 @@ import {
     isMQTTConnected,
 } from "../services/mqtt.service.js";
 
+import Booking from "../models/booking.js";
+
 // Check-in controller
 export async function checkInBooking(req, res) {
     try {
@@ -25,12 +27,6 @@ export async function checkInBooking(req, res) {
             locationId,
             user: req.user,
         });
-
-        // Publish MQTT message to open entry gate
-        if (result.booking.status === 'active' && result.booking.isCheckedIn) {
-            const mqttResult = await publishGateOpen1(bookingId, result.booking);
-            console.log('[CheckIn] MQTT Gate 1 published:', mqttResult.published);
-        }
 
         return res.status(200).json({
             success: true,
@@ -60,17 +56,6 @@ export async function checkOutBooking(req, res) {
             locationId,
             user: req.user,
         });
-
-        // Publish MQTT message based on checkout status
-        if (result.requiresFinePayment) {
-            // User overstayed - fine pending, don't open exit gate
-            const mqttResult = await publishFinePending(bookingId, result.fine, result.booking);
-            console.log('[CheckOut] MQTT Fine Pending published:', mqttResult.published);
-        } else if (result.booking.status === 'completed' && result.booking.isCheckedOut) {
-            // No fine, checkout successful - open exit gate
-            const mqttResult = await publishGateOpen2(bookingId, result.booking);
-            console.log('[CheckOut] MQTT Gate 2 published:', mqttResult.published);
-        }
 
         return res.status(200).json({
             success: true,
@@ -184,15 +169,22 @@ export async function scanBooking(req, res) {
             // Check if booking is expired and requires fine payment
             const { booking } = statusResult;
             
-            if (booking.status === "expired" && !booking.finePaid && booking.fine > 0) {
+            if (booking.status === "expired" && !booking.finePaid && (booking.fine > 0 || statusResult.currentFine > 0)) {
+                // Set attemptedCheckout flag if not already set
+                if (!booking.attemptedCheckout) {
+                    booking.attemptedCheckout = true;
+                    await booking.save();
+                }
+                
                 // Expired booking with unpaid fine - block checkout
+                const fineAmount = Math.max(booking.fine || 0, statusResult.currentFine || 0);
                 return res.status(400).json({
                     success: false,
-                    action: "fine-payment-required",
-                    message: "Fine pending. User must pay fine before checkout.",
+                    action: "fine-payment-required", 
+                    message: `Fine pending. Please pay रु ${fineAmount} (${statusResult.hoursLate} hour${statusResult.hoursLate > 1 ? "s" : ""} late) before checkout.`,
                     data: {
                         booking: booking,
-                        fine: booking.fine,
+                        fine: fineAmount,
                         minutesLate: statusResult.minutesLate,
                         hoursLate: statusResult.hoursLate,
                         requiresFinePayment: true,

@@ -22,7 +22,7 @@ export default function PaymentModal({ booking, onClose, onSuccess }) {
   };
 
   const overstay = calculateOverstay();
-  const fineAmount = booking.fine || 0;
+  const fineAmount = booking.currentFine || booking.fine || 0;
   const hourlyRate = booking.hourlyRate || 50;
 
   const handlePayFine = async () => {

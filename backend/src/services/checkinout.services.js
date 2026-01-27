@@ -1,6 +1,7 @@
 import Booking from "../models/booking.js";
 import ParkingSpot from "../models/parkingSpot.js";
 import mongoose from "mongoose";
+import { publishGateOpen1, publishGateOpen2, publishFinePending } from "./mqtt.service.js";
 
 const FINE_MULTIPLIER = 1.5; // Fine is 1.5x the hourly rate per hour
 
@@ -160,6 +161,15 @@ export async function checkInBookingService(bookingId, options = {}) {
 
     await booking.save();
 
+    // Publish MQTT message for successful check-in (gate entry)
+    try {
+        await publishGateOpen1(booking._id, booking);
+        console.log('[CheckIn] MQTT entry gate message published');
+    } catch (mqttError) {
+        console.error('[CheckIn] MQTT publish failed:', mqttError.message);
+        // Don't fail the booking process if MQTT fails
+    }
+
     return {
         booking,
         graceApplied,
@@ -226,6 +236,17 @@ export async function checkOutBookingService(bookingId, options = {}) {
         // Do NOT check out, do NOT free spot
         booking.actualExitTime = null;
         booking.isCheckedOut = false;
+        
+        await booking.save();
+        
+        // Publish MQTT message for blocked checkout (fine required)
+        try {
+            await publishFinePending(booking._id, fine, booking);
+            console.log('[CheckOut] MQTT blocked gate message published for fine');
+        } catch (mqttError) {
+            console.error('[CheckOut] MQTT publish failed for fine:', mqttError.message);
+            // Don't fail the booking process if MQTT fails
+        }
     } else {
         // No overstay, normal checkout
         booking.fine = 0;
@@ -241,9 +262,18 @@ export async function checkOutBookingService(bookingId, options = {}) {
                 isOccupied: false,
             });
         }
+        
+        await booking.save();
+        
+        // Publish MQTT message for successful checkout (gate exit)
+        try {
+            await publishGateOpen2(booking._id, booking);
+            console.log('[CheckOut] MQTT exit gate message published');
+        } catch (mqttError) {
+            console.error('[CheckOut] MQTT publish failed for exit:', mqttError.message);
+            // Don't fail the booking process if MQTT fails
+        }
     }
-
-    await booking.save();
 
     return {
         booking,
@@ -358,6 +388,15 @@ export async function payFineAndCheckoutService(bookingId, options = {}) {
             }
 
             await booking.save();
+            
+            // Publish MQTT message for successful checkout after fine payment
+            try {
+                await publishGateOpen2(booking._id, booking);
+                console.log('[CheckOut] MQTT exit gate message published after fine payment');
+            } catch (mqttError) {
+                console.error('[CheckOut] MQTT publish failed after fine payment:', mqttError.message);
+                // Don't fail the booking process if MQTT fails
+            }
         }
 
         return {
@@ -433,7 +472,14 @@ export async function getBookingStatusService(bookingId, options = {}) {
     let currentFine = 0;
     if (minutesLate > 0 && booking.isCheckedIn) {
         const hourlyRate = booking.hourlyRate || 50;
-        currentFine = Math.ceil(hoursLate * hourlyRate * 1.5);
+        currentFine = Math.ceil(hoursLate * hourlyRate * FINE_MULTIPLIER);
+        
+        // Update stored fine if booking is expired and fine hasn't been set or needs updating
+        if (booking.status === "expired" && (!booking.fine || booking.fine < currentFine)) {
+            booking.fine = currentFine;
+            booking.finePaid = booking.finePaid || false; // Ensure finePaid is set
+            await booking.save();
+        }
     }
 
     const requiresFinePayment =

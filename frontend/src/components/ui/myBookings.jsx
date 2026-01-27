@@ -414,11 +414,6 @@ const calculateDuration = (startTime, endTime, booking) => {
                 statusLower === "active" ||
                 statusLower === "expired";
 
-              const canPayFine =
-                statusLower === "expired" &&
-                booking.fine > 0 &&
-                !booking.finePaid;
-
               return (
                 <div
                   key={booking._id}
@@ -559,7 +554,7 @@ const calculateDuration = (startTime, endTime, booking) => {
                       </div>
 
                       {/* Fine Alert */}
-                      {statusLower === "expired" && booking.fine > 0 && (
+                      {statusLower === "expired" && (booking.fine > 0 || booking.currentFine > 0) && (
                         <div className={`mt-4 rounded-lg p-3 border ${
                           booking.finePaid 
                             ? "bg-green-50 border-green-200" 
@@ -569,7 +564,7 @@ const calculateDuration = (startTime, endTime, booking) => {
                             <>
                               <p className="text-green-700 font-semibold text-sm flex items-center gap-2">
                                 <CheckCircle size={16} />
-                                Fine Paid: ₹{booking.fine}
+                                Fine Paid: ₹{booking.currentFine || booking.fine}
                               </p>
                               <p className="text-xs text-green-600 mt-1">
                                 You may now checkout at the gate.
@@ -579,7 +574,7 @@ const calculateDuration = (startTime, endTime, booking) => {
                             <>
                               <p className="text-orange-700 font-semibold text-sm flex items-center gap-2">
                                 <AlertCircle size={16} />
-                                Fine Due: ₹{booking.fine}
+                                Fine Due: ₹{booking.currentFine || booking.fine}
                               </p>
                               <p className="text-xs text-orange-600 mt-1">
                                 ⚠️ Checkout blocked. Click "View / Pay Fine" to pay or pay at gate.

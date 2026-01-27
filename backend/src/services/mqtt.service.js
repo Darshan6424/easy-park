@@ -85,11 +85,75 @@ export function initializeMQTT() {
 }
 
 /**
+ * Publish to specific gate control topics with standardized payload
+ * Used by the booking lifecycle for automatic gate control
+ */
+export async function publishToGateTopic(topic, payload) {
+    if (!mqttClient) {
+        console.log(`[MQTT] MQTT not initialized. Skipping publish to ${topic}`);
+        return {
+            success: false,
+            message: 'MQTT not initialized',
+            published: false,
+        };
+    }
+
+    if (!isConnected) {
+        console.warn(`[MQTT] Not connected to broker. Skipping publish to ${topic}`);
+        return {
+            success: false,
+            message: 'MQTT client not connected',
+            published: false,
+        };
+    }
+
+    try {
+        const message = {
+            ...payload,
+            timestamp: new Date().toISOString(),
+        };
+
+        console.log(`[MQTT] Publishing to ${topic}:`, message);
+
+        return new Promise((resolve) => {
+            mqttClient.publish(topic, JSON.stringify(message), { qos: 1 }, (error) => {
+                if (error) {
+                    console.error(`[MQTT] Publish error for ${topic}:`, error.message);
+                    resolve({
+                        success: false,
+                        message: error.message,
+                        published: false,
+                    });
+                } else {
+                    console.log(`[MQTT] ✓ Message published to ${topic}`);
+                    resolve({
+                        success: true,
+                        message: `Published to ${topic}`,
+                        published: true,
+                    });
+                }
+            });
+        });
+    } catch (error) {
+        console.error(`[MQTT] Error publishing to ${topic}:`, error.message);
+        return {
+            success: false,
+            message: error.message,
+            published: false,
+        };
+    }
+}
+
+/**
  * Publish Gate Open Action for Entry (Gate 1)
  * Called after successful check-in
  */
 export async function publishGateOpen1(bookingId, booking) {
-    return publishGateAction('gate_open_1', bookingId, booking, 'Entry gate opened');
+    return publishToGateTopic('parking/gate/entry', {
+        action: 'OPEN_GATE_1',
+        bookingId: bookingId,
+        locationId: booking?.location?._id || booking?.parkingSpot?.parkingLocation?._id
+    });
 }
 
 /**
@@ -162,7 +226,11 @@ export async function publishGateAction(action, bookingId, booking, message, ext
  * Called after successful check-out with no fine
  */
 export async function publishGateOpen2(bookingId, booking) {
-    return publishGateAction('gate_open_2', bookingId, booking, 'Exit gate opened');
+    return publishToGateTopic('parking/gate/exit', {
+        action: 'OPEN_GATE_2',
+        bookingId: bookingId,
+        locationId: booking?.location?._id || booking?.parkingSpot?.parkingLocation?._id
+    });
 }
 
 /**
@@ -170,9 +238,10 @@ export async function publishGateOpen2(bookingId, booking) {
  * Called when user needs to pay fine before exit
  */
 export async function publishFinePending(bookingId, fine, booking) {
-    return publishGateAction('fine_pending', bookingId, booking, `Fine pending: रु${fine}`, {
-        fine: fine,
-        requiresPayment: true,
+    return publishToGateTopic('parking/gate/blocked', {
+        action: 'PAY_FINE_REQUIRED',
+        bookingId: bookingId,
+        fine: fine
     });
 }
 
@@ -256,6 +325,7 @@ export default {
     publishGateOpen1,
     publishGateOpen2,
     publishFinePending,
+    publishToGateTopic,
     publishManualGateAction,
     publishGateAction,
     closeMQTT,

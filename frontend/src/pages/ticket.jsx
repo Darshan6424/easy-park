@@ -39,17 +39,17 @@ export default function BookingTicket() {
   const [error, setError] = useState("");
   const [qrCode, setQrCode] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
 
   // Setup notification system for this booking
   useBookingNotifications(booking);
 
-  // Update current time every second for dynamic display
+  // Update current time every second for dynamic display (used in time calculations)
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(new Date());
+      // Force re-render for time-dependent calculations like timeRemaining
+      setLoading(prev => prev);
     }, 1000);
 
     return () => clearInterval(interval);
@@ -116,7 +116,8 @@ export default function BookingTicket() {
             booking.status !== bookingData.status || 
             booking.fine !== bookingData.fine ||
             booking.finePaid !== bookingData.finePaid ||
-            booking.attemptedCheckout !== bookingData.attemptedCheckout) {
+            booking.attemptedCheckout !== bookingData.attemptedCheckout ||
+            booking.currentFine !== bookingData.currentFine) {
           setBooking(bookingData);
         }
       } else {
@@ -267,10 +268,21 @@ export default function BookingTicket() {
   };
 
   const handlePaymentSuccess = (updatedBooking) => {
-    setBooking(updatedBooking.booking || updatedBooking);
+    const newBookingData = updatedBooking.booking || updatedBooking;
+    setBooking(newBookingData);
     setShowPaymentModal(false);
+    
+    // Show success message
+    if (newBookingData.finePaid) {
+      alert("Fine paid successfully! You can now rescan the QR code at the exit gate to complete checkout.");
+    }
+    
     // Refresh booking to get latest data
-    setTimeout(() => fetchBooking(), 1000);
+    setTimeout(() => {
+      fetchBooking();
+      // Force re-render to show updated status
+      window.location.reload();
+    }, 1500);
   };
 
   const handleDownloadPDF = async () => {
@@ -519,25 +531,32 @@ export default function BookingTicket() {
                   <div className="font-semibold text-orange-800 mb-1">
                     ⚠️ Booking Expired
                   </div>
-                  {booking.fine > 0 && !booking.finePaid ? (
+                  {(booking.fine > 0 || booking.currentFine > 0) && !booking.finePaid ? (
                     <div className="text-orange-700">
                       <p className="mb-1">
-                        <strong>Fine Amount:</strong> ₹{booking.fine}
-                      </p>
+                        <strong>Fine Amount:</strong> ₹{booking.currentFine || booking.fine}</p>
+                      {(booking.minutesLate || booking.hoursLate) && (
+                        <p className="text-xs text-orange-600 mb-1">
+                          Overstay: {booking.hoursLate ? `${booking.hoursLate}h ` : ''}{booking.minutesLate ? `${booking.minutesLate % 60}m` : ''}
+                        </p>
+                      )}
                       {booking.attemptedCheckout ? (
-                        <p className="text-xs">
-                          Fine detected! Use "Pay Fine" button below to pay online, or pay at exit gate.
+                        <p className="text-xs bg-blue-50 border border-blue-200 rounded p-2 mt-1">
+                          <strong>💳 Pay Fine Online:</strong> You can now pay your fine using the "Pay Fine" button below, then rescan QR at the gate to complete checkout.
                         </p>
                       ) : (
                         <p className="text-xs bg-yellow-100 border border-yellow-300 rounded p-2 mt-1">
-                          <strong>⚠️ Scan QR at gate first:</strong> You must attempt checkout at the exit gate before you can pay the fine online. This prevents remote fine payments.
+                          <strong>⚠️ Scan QR at gate first:</strong> You must attempt checkout at the exit gate once before you can pay the fine online. This prevents remote fine payments.
                         </p>
                       )}
                     </div>
                   ) : booking.finePaid ? (
-                    <p className="text-green-700 font-semibold">
-                      ✓ Fine paid. You may checkout at the gate.
-                    </p>
+                    <div className="text-green-700">
+                      <p className="font-semibold mb-1">✓ Fine paid successfully!</p>
+                      <p className="text-xs bg-green-100 border border-green-200 rounded p-2">
+                        <strong>✅ Ready to checkout:</strong> Your fine has been paid. Please rescan the QR code at the exit gate to complete your checkout.
+                      </p>
+                    </div>
                   ) : (
                     <p className="text-orange-700">
                       Booking time ended. Scan QR at gate to checkout.
@@ -545,9 +564,9 @@ export default function BookingTicket() {
                   )}
                 </div>
               )}
-              {booking.fine > 0 && !booking.finePaid && hasExpired && (
+              {(booking.fine > 0 || booking.currentFine > 0) && !booking.finePaid && hasExpired && (
                 <div className="mt-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-semibold">
-                  ⚠️ Checkout blocked until fine is paid: ₹{booking.fine}
+                  ⚠️ Checkout blocked until fine is paid: ₹{booking.currentFine || booking.fine}
                 </div>
               )}
             </div>
@@ -738,13 +757,13 @@ export default function BookingTicket() {
 
               {/* Action Buttons */}
               <div className="flex gap-2 print:hidden">
-                {hasExpired && booking.fine > 0 && !booking.finePaid && booking.attemptedCheckout && (
+                {hasExpired && (booking.fine > 0 || booking.currentFine > 0) && !booking.finePaid && booking.attemptedCheckout && (
                   <button
                     onClick={handlePayFine}
                     className="px-4 py-1.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:shadow-lg transition-all font-bold text-xs flex items-center gap-1.5"
                   >
                     <CreditCard size={14} strokeWidth={2.5} />
-                    Pay Fine ₹{booking.fine}
+                    Pay Fine ₹{booking.currentFine || booking.fine}
                   </button>
                 )}
                 {hasExpired && booking.finePaid && (

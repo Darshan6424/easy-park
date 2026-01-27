@@ -206,7 +206,32 @@ export async function getOneBookingService(bookingId) {
         throw new Error("Booking not found");
     }
 
-    return bookingDetails;
+    // Calculate dynamic fine information for expired bookings
+    const now = new Date();
+    const endTime = new Date(bookingDetails.endTime);
+    const minutesLate = Math.floor((now - endTime) / (1000 * 60));
+    const hoursLate = minutesLate > 0 ? Math.ceil(minutesLate / 60) : 0;
+    
+    let currentFine = 0;
+    if (bookingDetails.status === "expired" && minutesLate > 0 && bookingDetails.isCheckedIn) {
+        const hourlyRate = bookingDetails.hourlyRate || 50;
+        currentFine = Math.ceil(hoursLate * hourlyRate * 1.5);
+        
+        // Update booking fine if necessary
+        if (!bookingDetails.fine || bookingDetails.fine < currentFine) {
+            bookingDetails.fine = currentFine;
+            bookingDetails.finePaid = bookingDetails.finePaid || false;
+            await bookingDetails.save();
+        }
+    }
+
+    // Add dynamic fine information to the response
+    const bookingWithFineInfo = bookingDetails.toObject();
+    bookingWithFineInfo.minutesLate = minutesLate > 0 ? minutesLate : 0;
+    bookingWithFineInfo.hoursLate = hoursLate;
+    bookingWithFineInfo.currentFine = Math.max(bookingDetails.fine || 0, currentFine);
+
+    return bookingWithFineInfo;
 }
 
 export async function getAllBookingsService(userId) {
