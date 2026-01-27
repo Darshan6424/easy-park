@@ -27,12 +27,14 @@ function assertLocationScope(booking, locationId, user) {
         throw new Error("Booking does not belong to this location");
     }
 
-    if (
-        user?.role === "OWNER" &&
-        locationRef?.owner &&
-        locationRef.owner.toString() !== user.id.toString()
-    ) {
-        throw new Error("You are not authorized to manage this location");
+    if (user?.role === "OWNER" && locationRef?.owner) {
+        // Handle case where owner is populated object or just ObjectId
+        const locationOwnerId = locationRef.owner._id?.toString() || locationRef.owner.toString();
+        const userId = user.id?.toString() || user._id?.toString();
+        
+        if (locationOwnerId !== userId) {
+            throw new Error("You are not authorized to manage this location");
+        }
     }
 
     return bookingLocationId;
