@@ -43,11 +43,11 @@ MONGO_DB_URL=mongodb://...
 JWT_SECRET_KEY=your_secret
 
 # MQTT Configuration for Gate Control
-MQTT_BROKER=6f9aa7d0fff646d7a9513a3970ca84f5.s1.eu.hivemq.cloud
+MQTT_BROKER=xxx.hivemq.cloud
 MQTT_PORT=8883
-MQTT_USERNAME=parkmein
-MQTT_PASSWORD=Darshan123
-MQTT_TOPIC=parkmein/esp32/action
+MQTT_USERNAME=project_username
+MQTT_PASSWORD=project_pass
+MQTT_TOPIC=topic/esp32/action
 ```
 
 ### 2. Frontend Setup
@@ -84,11 +84,11 @@ ESP32 GPIO13 ───────> Relay Module IN2 (Gate 2)
 ### Configuration
 
 **HiveMQ Broker:**
-- Broker: `6f9aa7d0fff646d7a9513a3970ca84f5.s1.eu.hivemq.cloud`
+- Broker: `xxxx.hivemq.cloud`
 - Port: `8883` (MQTT over TLS)
-- Username: `parkmein`
-- Password: `Darshan123`
-- Topic: `parkmein/esp32/action`
+- Username: `project_username`
+- Password: `project-pass`
+- Topic: `topic/esp32/action`
 
 ### Message Format
 
@@ -308,14 +308,14 @@ The Owner Dashboard includes test buttons to manually trigger gate opening:
 
 ### Backend (.env)
 ```
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/easypark
+PORT=
+MONGODB_URI=mongodb://
 JWT_SECRET=your_secret_key
 ```
 
 ### Frontend (.env)
 ```
-VITE_API_BASE_URL=http://localhost:5000
+VITE_API_BASE_URL= 
 ```
 
 ---
